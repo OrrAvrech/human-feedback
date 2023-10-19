@@ -7,11 +7,12 @@ st.set_page_config(layout="wide")
 video_dir = Path("/Users/orrav/Documents/projects/mia_starter_project/dataset/yoga/video/")
 text_dir = Path("/Users/orrav/Documents/projects/mia_starter_project/dataset/yoga/text/")
 segments_dir = Path("/Users/orrav/Documents/Data/human-feedback/segments")
-segments_list_sorted = sorted(list(segments_dir.rglob("*.mp4")), key=lambda x: float(str(x).split("_")[-2]))
+video_segments_dir = segments_dir / "video"
+segments_list_sorted = sorted(list(video_segments_dir.rglob("*.mp4")), key=lambda x: float(str(x).split("_")[-2]))
 
 
 for i, vid_path in enumerate(segments_list_sorted):
-    col1, col2, col3, col4 = st.columns(4, gap="large")
+    col1, col2, col3 = st.columns(3, gap="large")
 
     with col1:
         if i == 0:
@@ -28,12 +29,6 @@ for i, vid_path in enumerate(segments_list_sorted):
 
     with col3:
         if i == 0:
-            st.header("Motion")
-        pose_path = "/Users/orrav/Documents/Data/human-feedback/segments/video_pose/10_most_common_YOGA_MISTAKES_new_students_make_and_how_to_fix_them_0.0_5.36.mp4"
-        st.video(str(pose_path))
-
-    with col4:
-        if i == 0:
-            st.header("Motion")
-        pose_path = "/Users/orrav/Documents/Data/human-feedback/segments/video_pose/10_most_common_YOGA_MISTAKES_new_students_make_and_how_to_fix_them_0.0_5.36.mp4"
+            st.header("Pose")
+        pose_path = vid_path.parents[1] / "video_pose" / vid_path.stem / f"h264_AlphaPose_{vid_path.stem}.mp4"
         st.video(str(pose_path))
