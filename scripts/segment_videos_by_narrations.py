@@ -1,12 +1,7 @@
 import json
 from pathlib import Path
 from moviepy.editor import VideoFileClip
-
-
-def read_text(text_path: Path) -> list[dict]:
-    with open(str(text_path), "r") as fp:
-        text = json.load(fp)
-    return text
+from utils import read_text
 
 
 def main():
