@@ -30,12 +30,12 @@ def extract_frames(vid_path: Path, output_dir: Path, fps: Optional[float] = None
     return fps
 
 
-def frames_to_vid(frames_dir: Path, output_path: Path, fps: float):
+def frames_to_vid(frames_dir: Path, output_path: Path, fps: float, frmt: str = "H264"):
     files_list = sorted(list(frames_dir.glob("*.png")), key=lambda x: int(str(x.stem).split("_")[-1]))
     first_image = cv2.imread(str(files_list[0]))
     height, width, layers = first_image.shape
 
-    fourcc = cv2.VideoWriter_fourcc(*'H264')
+    fourcc = cv2.VideoWriter_fourcc(*frmt)
     video = cv2.VideoWriter(str(output_path), fourcc, fps, (width, height))
 
     for image_path in files_list:
