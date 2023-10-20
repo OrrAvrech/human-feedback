@@ -9,9 +9,9 @@ def main():
         "/Users/orrav/Documents/Data/human-feedback/raw/video/10_most_common_YOGA_MISTAKES_new_students_make_and_how_to_fix_them.mp4"
     )
     text_path = Path(
-        "/Users/orrav/Documents/Data/human-feedback/raw/text/10_most_common_YOGA_MISTAKES_new_students_make_and_how_to_fix_them.json"
+        "/Users/orrav/Documents/Data/human-feedback/raw/sentiment_text/10_most_common_YOGA_MISTAKES_new_students_make_and_how_to_fix_them.json"
     )
-    segments_dir = Path("/Users/orrav/Documents/Data/human-feedback/segments")
+    segments_dir = Path("/Users/orrav/Documents/Data/human-feedback/sentiment_segments")
 
     vid_segments_dir = segments_dir / "video"
     text_segments_dir = segments_dir / "text"
@@ -24,6 +24,7 @@ def main():
         for sentence in narrations:
             start, end = sentence["timestamp"]
             text = sentence["text"]
+            sentiment = sentence["sentiment"]
             sub_vid = vid.subclip(start, end)
             segment_name = f"{vid_path.stem}_{start}_{end}"
             vid_segment_path = vid_segments_dir / f"{segment_name}.mp4"
@@ -31,7 +32,7 @@ def main():
 
             sub_vid.write_videofile(str(vid_segment_path))
             with open(text_segment_path, "w") as fp:
-                json.dump(text, fp)
+                json.dump({"text": text, "sentiment": sentiment}, fp)
         sub_vid.close()
     vid.close()
 

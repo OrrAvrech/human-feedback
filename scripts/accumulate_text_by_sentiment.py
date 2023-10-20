@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from utils import read_text
 from typing import NamedTuple
@@ -11,9 +12,12 @@ class Sentiment(NamedTuple):
 
 def main():
     text_dir = Path("/Users/orrav/Documents/Data/human-feedback/raw/text")
+    sentiment_text_dir = Path("/Users/orrav/Documents/Data/human-feedback/raw/sentiment_text")
+    sentiment_text_dir.mkdir(exist_ok=True)
+
     for text_path in text_dir.rglob("*.json"):
         data = read_text(text_path)
-        text_segments = [segment["text"] for segment in data][:18]
+        text_segments = [segment["text"] for segment in data]
         sentiments = """Positive
                         Positive
                         Positive
@@ -26,13 +30,95 @@ def main():
                         Positive
                         Negative
                         Neutral
+                        Neutral
+                        Negative
+                        Negative
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Negative
+                        Neutral
+                        Negative
+                        Negative
+                        Positive
+                        Positive
+                        Positive
                         Negative
                         Negative
                         Negative
+                        Positive
+                        Positive
+                        Positive
+                        Neutral
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Neutral
+                        Neutral
+                        Negative
+                        Negative
+                        Negative
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Neutral
+                        Neutral
+                        Negative
+                        Negative
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Negative
+                        Negative
+                        Negative
+                        Negative
+                        Positive
+                        Positive
+                        Positive
+                        Neutral
+                        Neutral
+                        Negative
+                        Neutral
+                        Negative
+                        Negative
+                        Negative
+                        Negative
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Negative
+                        Negative
+                        Negative
+                        Positive
+                        Positive
+                        Negative
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Positive
+                        Neutral
+                        Positive
                         Positive
                         Positive
                         Positive""".replace(" ", "").split("\n")
-        text_corpus = "".join(text_segments)
 
         samples = []
         end = None
@@ -83,7 +169,9 @@ def main():
             "sentiment": sentiment,
         }
         samples.append(sample)
-        print(samples)
+        sentiment_text_file = sentiment_text_dir / text_path.name
+        with open(sentiment_text_file, "w") as fp:
+            json.dump(samples, fp)
 
 
 if __name__ == "__main__":

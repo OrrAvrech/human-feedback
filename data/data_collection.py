@@ -31,13 +31,12 @@ def scrape_videos(cfg: ScraperConfig, action: str, dataset_dir: Path, video_pref
 
 @pyrallis.wrap()
 def main(cfg: DataConfig):
-    # dataset_dir = Path("./dataset")
-    dataset_dir = Path("/Users/orrav/Documents/Data/human-feedback/raw")
+    dataset_dir = Path("./dataset")
 
-    # actions = cfg.actions
-    # for action in actions:
-    #     print(f"{action}:")
-    #     scrape_videos(cfg=cfg.scraper, action=action, dataset_dir=dataset_dir)
+    actions = cfg.actions
+    for action in actions:
+        print(f"{action}:")
+        scrape_videos(cfg=cfg.scraper, action=action, dataset_dir=dataset_dir)
 
     # extract audio and transcription from videos
     for vid_path in dataset_dir.rglob("*.mp4"):
