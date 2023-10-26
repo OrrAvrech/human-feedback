@@ -54,7 +54,7 @@ def extract_audio(
     audio_dir.mkdir(exist_ok=True)
     filepath = audio_dir / f"{vid_path.stem}.{ext}"
     if run is False and filepath.exists():
-        pass
+        print(f"skip audio-extractor, use local {filepath.name}")
     else:
         with VideoFileClip(str(vid_path)) as clip:
             clip.audio.write_audiofile(filepath)
@@ -68,7 +68,7 @@ def transcribe_speech(
     text_dir.mkdir(exist_ok=True)
     filepath = text_dir / f"{audio_path.stem}.json"
     if run is False and filepath.exists():
-        pass
+        print(f"skip transcriber, use local {filepath.name}")
     else:
         # Load pre-trained ASR model
         transcriber = pipeline(
@@ -97,10 +97,13 @@ def prepare_prompt(text_path: Path, template_path: Path) -> str:
     return prompt
 
 
+def get_gpt_output(prompt: str):
+    pass
+
+
 @pyrallis.wrap()
 def main(cfg: DataConfig):
-    dataset_dir = Path("./dataset")
-
+    dataset_dir = cfg.dataset_dir
     actions = cfg.actions
     if cfg.scraper.run is True:
         # scrape new videos, use local video otherwise
@@ -115,6 +118,7 @@ def main(cfg: DataConfig):
             audio_path, cfg.transcriber.chunk_length_s, run=cfg.transcriber.run
         )
         prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
+        print(prompt)
 
 
 if __name__ == "__main__":
