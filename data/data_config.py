@@ -36,6 +36,7 @@ class Templates:
 @dataclass
 class DataConfig:
     dataset_dir: Path
+    output_dir: Path
     actions: list[str]
     scraper: ScraperConfig
     audio_extractor: AudioExtractor

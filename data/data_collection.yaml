@@ -1,4 +1,5 @@
 dataset_dir: "/Users/orrav/Documents/Data/human-feedback/raw"
+output_dir: "/Users/orrav/Documents/Data/human-feedback/segments"
 
 actions:
   - push ups

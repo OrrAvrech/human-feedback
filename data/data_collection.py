@@ -1,4 +1,6 @@
+import os
 import json
+import openai
 import yt_dlp
 import pyrallis
 
@@ -11,10 +13,18 @@ from utils import read_text
 from data.data_config import DataConfig, ScraperConfig
 import jinja2 as j2
 
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 
 class ASRModelZoo(NamedTuple):
     whisper_small = "openai/whisper-small"
     wav2vec2 = "jonatasgrosman/wav2vec2-large-xlsr-53-english"
+
+
+class Sentiment(NamedTuple):
+    positive = "Positive"
+    neutral = "Neutral"
+    negative = "Negative"
 
 
 def scrape_videos(
@@ -97,8 +107,71 @@ def prepare_prompt(text_path: Path, template_path: Path) -> str:
     return prompt
 
 
-def get_gpt_output(prompt: str):
-    pass
+def get_gpt_sentiments(prompt: str) -> list[str]:
+    response = openai.ChatCompletion.create(
+        model="gpt-3.5-turbo",
+        messages=[{"role": "system", "content": prompt}],
+    )
+    sentiments = response["choices"]["text"].split("\n")
+    return response
+
+
+def accumulate_text_by_sentiment(
+    text_path: Path, sentiments: list[str], output_dir: Path
+) -> Path:
+    data = read_text(text_path)
+    text_segments = [segment["text"] for segment in data]
+    samples = []
+    end = None
+    text_paragraph = text_segments[0]
+    accumulated_sentiments = [sentiments[0]]
+    start = data[0]["timestamp"][0]
+    for i in range(1, len(text_segments)):
+        curr_segment = text_segments[i]
+        curr_sentiment = sentiments[i]
+        prev_sentiment = sentiments[i - 1]
+
+        if curr_sentiment == prev_sentiment or curr_sentiment == Sentiment.neutral:
+            text_paragraph += curr_segment
+            accumulated_sentiments.append(curr_sentiment)
+            end = data[i]["timestamp"][-1]
+            if end is None:
+                end = data[i]["timestamp"][0]
+
+        else:
+            sentiment = Sentiment.positive
+            if Sentiment.negative in accumulated_sentiments:
+                sentiment = Sentiment.negative
+
+            sample = {
+                "timestamp": [start, end],
+                "text": text_paragraph,
+                "sentiment": sentiment,
+            }
+            samples.append(sample)
+            start = data[i]["timestamp"][0]
+            end = data[i]["timestamp"][-1]
+            text_paragraph = text_segments[i]
+            accumulated_sentiments = [sentiments[i]]
+
+    if Sentiment.positive in accumulated_sentiments:
+        sentiment = Sentiment.positive
+    elif Sentiment.negative in accumulated_sentiments:
+        sentiment = Sentiment.negative
+    else:
+        sentiment = Sentiment.neutral
+        print(f"all sentences are {sentiment}")
+
+    sample = {
+        "timestamp": [start, end],
+        "text": text_paragraph,
+        "sentiment": sentiment,
+    }
+    samples.append(sample)
+    sentiment_text_filepath = output_dir / text_path.name
+    with open(sentiment_text_filepath, "w") as fp:
+        json.dump(samples, fp)
+    return sentiment_text_filepath
 
 
 @pyrallis.wrap()
@@ -118,7 +191,9 @@ def main(cfg: DataConfig):
             audio_path, cfg.transcriber.chunk_length_s, run=cfg.transcriber.run
         )
         prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
-        print(prompt)
+        # OPENAI GPT API Call
+        sentiments = get_gpt_sentiments(prompt)
+        sentiment_text_path = accumulate_text_by_sentiment(text_path, sentiments, cfg.output_dir)
 
 
 if __name__ == "__main__":
