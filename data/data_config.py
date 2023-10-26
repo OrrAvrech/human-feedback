@@ -1,9 +1,11 @@
+from pathlib import Path
 from typing import Optional
 from dataclasses import dataclass
 
 
 @dataclass
 class ScraperConfig:
+    run: bool
     extractor: str
     prefix_prompt: str
     restrict_filenames: bool
@@ -16,12 +18,25 @@ class ScraperConfig:
 
 
 @dataclass
+class AudioExtractor:
+    run: bool
+
+
+@dataclass
 class Transcriber:
+    run: bool
     chunk_length_s: Optional[int]
 
 
 @dataclass
+class Templates:
+    sentiment_prompt_path: Path
+
+
+@dataclass
 class DataConfig:
-    scraper: ScraperConfig
-    transcriber: Transcriber
     actions: list[str]
+    scraper: ScraperConfig
+    audio_extractor: AudioExtractor
+    transcriber: Transcriber
+    templates: Templates

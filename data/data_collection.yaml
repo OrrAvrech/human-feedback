@@ -1,17 +1,3 @@
-scraper:
-  extractor: "ytsearch"
-  prefix_prompt: "common mistakes in"
-  restrict_filenames: true
-  min_vid_duration: 15
-  max_vid_duration: 900
-  ext: "mp4"
-  no_playlist: true
-  desired_agg_duration: 450
-  quiet_mode: false
-
-transcriber:
-  chunk_length_s: 30
-
 actions:
   - push ups
   - squats
@@ -23,3 +9,25 @@ actions:
   - hitting baseball
   - strumming guitar
   - sidekick
+
+scraper:
+  run: false
+  extractor: "ytsearch"
+  prefix_prompt: "common mistakes in"
+  restrict_filenames: true
+  min_vid_duration: 15
+  max_vid_duration: 900
+  ext: "mp4"
+  no_playlist: true
+  desired_agg_duration: 450
+  quiet_mode: false
+
+audio_extractor:
+  run: false
+
+transcriber:
+  run: false
+  chunk_length_s: 30
+
+templates:
+  sentiment_prompt_path: "./templates/sentiment_prompt.j2"
