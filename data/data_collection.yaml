@@ -26,11 +26,14 @@ scraper:
   quiet_mode: false
 
 audio_extractor:
-  run: false
+  use_cache: true
 
 transcriber:
-  run: false
+  use_cache: true
   chunk_length_s: 30
+
+gpt:
+  use_cache: true
 
 templates:
   sentiment_prompt_path: "./templates/sentiment_prompt.j2"

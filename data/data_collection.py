@@ -58,12 +58,12 @@ def scrape_videos(
 
 
 def extract_audio(
-    vid_path: Path, audio_prefix: str = "audio", ext: str = "wav", run: bool = True
+    vid_path: Path, cache: bool, prefix: str = "audio", ext: str = "wav"
 ) -> Path:
-    audio_dir = vid_path.parents[1] / audio_prefix
+    audio_dir = vid_path.parents[1] / prefix
     audio_dir.mkdir(exist_ok=True)
     filepath = audio_dir / f"{vid_path.stem}.{ext}"
-    if run is False and filepath.exists():
+    if cache is True and filepath.exists():
         print(f"skip audio-extractor, use local {filepath.name}")
     else:
         with VideoFileClip(str(vid_path)) as clip:
@@ -72,12 +72,12 @@ def extract_audio(
 
 
 def transcribe_speech(
-    audio_path: Path, chunk_len_s, text_prefix: str = "text", run: bool = True
+    audio_path: Path, chunk_len_s: float, cache: bool, prefix: str = "text"
 ) -> Path:
-    text_dir = audio_path.parents[1] / text_prefix
+    text_dir = audio_path.parents[1] / prefix
     text_dir.mkdir(exist_ok=True)
     filepath = text_dir / f"{audio_path.stem}.json"
-    if run is False and filepath.exists():
+    if cache is True and filepath.exists():
         print(f"skip transcriber, use local {filepath.name}")
     else:
         # Load pre-trained ASR model
@@ -107,18 +107,25 @@ def prepare_prompt(text_path: Path, template_path: Path) -> str:
     return prompt
 
 
-def get_gpt_sentiments(prompt: str) -> list[str]:
-    response = openai.ChatCompletion.create(
-        model="gpt-3.5-turbo",
-        messages=[{"role": "system", "content": prompt}],
-    )
-    sentiments = response["choices"]["text"].split("\n")
-    return response
+def write_gpt_response(prompt: str, output_path: Path, cache: bool):
+    if cache is True and output_path.exists():
+        print(f"skip ChatGPT, use local {output_path.name}")
+    else:
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",
+            messages=[{"role": "system", "content": prompt}],
+        )
+        with open(output_path, "w") as fp:
+            json.dump(response, fp)
 
 
-def accumulate_text_by_sentiment(
-    text_path: Path, sentiments: list[str], output_dir: Path
-) -> Path:
+def get_gpt_sentiments(gpt_path: Path) -> list[str]:
+    response = read_text(gpt_path)
+    sentiments = response[0]["choices"]["text"].split("\n")
+    return sentiments
+
+
+def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list[dict]:
     data = read_text(text_path)
     text_segments = [segment["text"] for segment in data]
     samples = []
@@ -168,32 +175,49 @@ def accumulate_text_by_sentiment(
         "sentiment": sentiment,
     }
     samples.append(sample)
-    sentiment_text_filepath = output_dir / text_path.name
-    with open(sentiment_text_filepath, "w") as fp:
-        json.dump(samples, fp)
-    return sentiment_text_filepath
+    return samples
+
+
+def cut_video_by_text_chunks(vid_path: Path, chunks: list[dict], output_dir: Path):
+    with VideoFileClip(str(vid_path)) as vid:
+        for sentence in chunks:
+            start, end = sentence["timestamp"]
+            sub_vid = vid.subclip(start, end)
+            segment_name = f"{vid_path.stem}_{start}_{end}"
+            vid_segment_path = output_dir / "video" / f"{segment_name}.mp4"
+            text_segment_path = output_dir / "text" / f"{segment_name}.json"
+
+            sub_vid.write_videofile(str(vid_segment_path))
+            with open(text_segment_path, "w") as fp:
+                json.dump(sentence, fp)
+        sub_vid.close()
+    vid.close()
 
 
 @pyrallis.wrap()
 def main(cfg: DataConfig):
     dataset_dir = cfg.dataset_dir
     actions = cfg.actions
+    # scrape new videos or use local videos otherwise
     if cfg.scraper.run is True:
-        # scrape new videos, use local video otherwise
         for action in actions:
             print(f"{action}:")
             scrape_videos(cfg=cfg.scraper, action=action, dataset_dir=dataset_dir)
 
     for vid_path in dataset_dir.rglob("*.mp4"):
         # extract audio and transcription from videos
-        audio_path = extract_audio(vid_path, run=cfg.audio_extractor.run)
+        audio_path = extract_audio(vid_path, cache=cfg.audio_extractor.use_cache)
         text_path = transcribe_speech(
-            audio_path, cfg.transcriber.chunk_length_s, run=cfg.transcriber.run
+            audio_path, cfg.transcriber.chunk_length_s, cache=cfg.transcriber.use_cache
         )
         prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
         # OPENAI GPT API Call
-        sentiments = get_gpt_sentiments(prompt)
-        sentiment_text_path = accumulate_text_by_sentiment(text_path, sentiments, cfg.output_dir)
+        gpt_path = cfg.output_dir / "gpt" / text_path.name
+        write_gpt_response(prompt, gpt_path, cache=cfg.gpt.use_cache)
+        sentiments = get_gpt_sentiments(gpt_path)
+        chunks = accumulate_text_by_sentiment(text_path, sentiments)
+        cut_video_by_text_chunks(vid_path, chunks, cfg.output_dir)
+        # run pose
 
 
 if __name__ == "__main__":

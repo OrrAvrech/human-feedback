@@ -19,13 +19,18 @@ class ScraperConfig:
 
 @dataclass
 class AudioExtractor:
-    run: bool
+    use_cache: bool
 
 
 @dataclass
 class Transcriber:
-    run: bool
+    use_cache: bool
     chunk_length_s: Optional[int]
+
+
+@dataclass
+class GPT:
+    use_cache: bool
 
 
 @dataclass
@@ -41,4 +46,5 @@ class DataConfig:
     scraper: ScraperConfig
     audio_extractor: AudioExtractor
     transcriber: Transcriber
+    gpt: GPT
     templates: Templates
