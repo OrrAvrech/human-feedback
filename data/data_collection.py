@@ -5,12 +5,13 @@ import yt_dlp
 import pyrallis
 
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Tuple
 from transformers import pipeline
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from utils import read_text
 from data.data_config import DataConfig, ScraperConfig
+from scripts.run_alphapose import run_alphapose_on_videos
 import jinja2 as j2
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -125,6 +126,32 @@ def get_gpt_sentiments(gpt_path: Path) -> list[str]:
     return sentiments
 
 
+def calculate_word_durations(
+    old_segments: list[str], old_time_stamps: list[Tuple]
+) -> list:
+    word_durations = []
+    for i, segment in enumerate(old_segments):
+        start_time, end_time = old_time_stamps[i]
+        words = segment.split()
+        word_duration = (end_time - start_time) / len(words)
+        word_durations.extend([word_duration] * len(words))
+    return word_durations
+
+
+def calculate_new_time_stamps(
+    old_segments: list[str], old_time_stamps: list[Tuple], new_segments: list[Tuple]
+) -> list[Tuple]:
+    word_durations = calculate_word_durations(old_segments, old_time_stamps)
+    new_time_stamps = []
+    current_word = 0  # Initialize current_word index
+    for label, text in new_segments:
+        words = text.split()
+        segment_duration = sum(word_durations[current_word : current_word + len(words)])
+        new_time_stamps.append((current_word, current_word + len(words)))
+        current_word += len(words)  # Increment by word count
+    return new_time_stamps
+
+
 def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list[dict]:
     data = read_text(text_path)
     text_segments = [segment["text"] for segment in data]
@@ -178,20 +205,25 @@ def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list
     return samples
 
 
-def cut_video_by_text_chunks(vid_path: Path, chunks: list[dict], output_dir: Path):
+def cut_video_by_text_chunks(
+    vid_path: Path, chunks: list[dict], output_dir: Path
+) -> Path:
+    video_output_dir = output_dir / "video"
+    text_output_dir = output_dir / "text"
     with VideoFileClip(str(vid_path)) as vid:
         for sentence in chunks:
             start, end = sentence["timestamp"]
             sub_vid = vid.subclip(start, end)
             segment_name = f"{vid_path.stem}_{start}_{end}"
-            vid_segment_path = output_dir / "video" / f"{segment_name}.mp4"
-            text_segment_path = output_dir / "text" / f"{segment_name}.json"
+            vid_segment_path = video_output_dir / f"{segment_name}.mp4"
+            text_segment_path = text_output_dir / f"{segment_name}.json"
 
             sub_vid.write_videofile(str(vid_segment_path))
             with open(text_segment_path, "w") as fp:
                 json.dump(sentence, fp)
         sub_vid.close()
     vid.close()
+    return video_output_dir
 
 
 @pyrallis.wrap()
@@ -212,12 +244,19 @@ def main(cfg: DataConfig):
         )
         prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
         # OPENAI GPT API Call
-        gpt_path = cfg.output_dir / "gpt" / text_path.name
+        out_gpt_dir = cfg.output_dir / "gpt"
+        gpt_path = out_gpt_dir / text_path.name
         write_gpt_response(prompt, gpt_path, cache=cfg.gpt.use_cache)
         sentiments = get_gpt_sentiments(gpt_path)
         chunks = accumulate_text_by_sentiment(text_path, sentiments)
-        cut_video_by_text_chunks(vid_path, chunks, cfg.output_dir)
-        # run pose
+        out_video_dir = cut_video_by_text_chunks(vid_path, chunks, cfg.output_dir)
+        out_pose_dir = cfg.output_dir / "pose"
+        # run alphapose
+        run_alphapose_on_videos(
+            root_dir=cfg.alphapose.root_dir,
+            output_dir=out_pose_dir,
+            vid_dir=out_video_dir,
+        )
 
 
 if __name__ == "__main__":

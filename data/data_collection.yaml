@@ -35,5 +35,8 @@ transcriber:
 gpt:
   use_cache: true
 
+alphapose:
+  root_dir: "/Users/orrav/Documents/projects/human-feedback/AlphaPose-master"
+
 templates:
   sentiment_prompt_path: "./templates/sentiment_prompt.j2"

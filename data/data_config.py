@@ -39,6 +39,11 @@ class Templates:
 
 
 @dataclass
+class AlphaPose:
+    root_dir: Path
+
+
+@dataclass
 class DataConfig:
     dataset_dir: Path
     output_dir: Path
@@ -47,4 +52,5 @@ class DataConfig:
     audio_extractor: AudioExtractor
     transcriber: Transcriber
     gpt: GPT
+    alphapose: AlphaPose
     templates: Templates
