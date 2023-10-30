@@ -3,6 +3,7 @@ import json
 import openai
 import yt_dlp
 import pyrallis
+import subprocess
 
 from pathlib import Path
 from typing import NamedTuple, Tuple
@@ -11,7 +12,6 @@ from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from utils import read_text
 from data.data_config import DataConfig, ScraperConfig
-from scripts.run_alphapose import run_alphapose_on_videos
 import jinja2 as j2
 
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -226,6 +226,22 @@ def cut_video_by_text_chunks(
     return video_output_dir
 
 
+def run_alphapose_on_videos(root_dir: Path, output_dir: Path, vid_dir: Path):
+    cfg_path = (
+        root_dir
+        / "configs/halpe_coco_wholebody_136/resnet/256x192_res50_lr1e-3_2x-dcn-combined.yaml"
+    )
+    ckpt = root_dir / "pretrained_models/multi_domain_fast50_dcn_combined_256x192.pth"
+
+    for i, vid_path in enumerate(vid_dir.rglob("*.mp4")):
+        vid_output_dir = output_dir / vid_path.stem
+        vid_output_dir.mkdir(exist_ok=True)
+        subprocess.run(
+            f"{root_dir / 'scripts/inference.sh'} {cfg_path} {ckpt} {vid_path} {vid_output_dir}",
+            shell=True,
+        )
+
+
 @pyrallis.wrap()
 def main(cfg: DataConfig):
     dataset_dir = cfg.dataset_dir
@@ -249,9 +265,10 @@ def main(cfg: DataConfig):
         write_gpt_response(prompt, gpt_path, cache=cfg.gpt.use_cache)
         sentiments = get_gpt_sentiments(gpt_path)
         chunks = accumulate_text_by_sentiment(text_path, sentiments)
+        # segment videos by GPT outputs
         out_video_dir = cut_video_by_text_chunks(vid_path, chunks, cfg.output_dir)
-        out_pose_dir = cfg.output_dir / "pose"
         # run alphapose
+        out_pose_dir = cfg.output_dir / "pose"
         run_alphapose_on_videos(
             root_dir=cfg.alphapose.root_dir,
             output_dir=out_pose_dir,
