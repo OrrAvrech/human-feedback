@@ -48,7 +48,7 @@ def frames_to_vid(frames_dir: Path, output_path: Path, fps: float, frmt: str = "
     video.release()
 
 
-def read_text(text_path: Path) -> list[dict]:
+def read_text(text_path: Path) -> Union[list[dict], dict]:
     with open(str(text_path), "r") as fp:
         text = json.load(fp)
     return text

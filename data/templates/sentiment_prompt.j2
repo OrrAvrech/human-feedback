@@ -1,6 +1,5 @@
 Given the following sentences:
 {{ sentences }}
 
-Please read the following definitions first. 1. A positive sentence is when the sentence mainly indicates how to correctly do a certain action or what not to do. 2. A negative sentence is when the sentence mainly indicates what is wrong with the action being made. 3. A neutral sentence is neither strictly a positive or a negative sentence.
-
-Please label the sentences above as Positive, Negative of Neutral according to what I just mentioned.
+Please read the following definitions first. The sentences here are synchronized to a video of a person performing yoga. Please segment the paragraph into chunks : correct, incorrect or neutral. 1. A "correct" sentence is when the sentence mainly indicates how to correctly do a certain action or what not to do so as to perform the action correctly. 2. An "incorrect" sentence is when the sentence mainly indicates what is wrong with the action being made, and implies the accompanying visual frames are of an action being performed incorrectly. 3. A neutral sentence is neither strictly a positive or a negative sentence. This is a list of input segments. Each segment has a start and end time. Create new segments (while maintaining the same order of words overall), and label them as Correct, Incorrect or Neutral according to what I just mentioned.
+The output should have the following format, without anything else: for each sentence provide its label and sentence.

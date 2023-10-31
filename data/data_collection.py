@@ -120,36 +120,97 @@ def write_gpt_response(prompt: str, output_path: Path, cache: bool):
             json.dump(response, fp)
 
 
-def get_gpt_sentiments(gpt_path: Path) -> list[str]:
+def get_gpt_sentences(gpt_path: Path) -> list[str]:
     response = read_text(gpt_path)
-    sentiments = response[0]["choices"]["text"].split("\n")
-    return sentiments
+    sentences = response["choices"][0]["message"]["content"].split("\n")
+    return sentences
 
 
 def calculate_word_durations(
-    old_segments: list[str], old_time_stamps: list[Tuple]
-) -> list:
+    old_segments, old_time_stamps
+) -> tuple[list, list, list, list]:
     word_durations = []
+    word_durations_plus_jump = []
+    bools = []
+    jumps_alone = []
     for i, segment in enumerate(old_segments):
         start_time, end_time = old_time_stamps[i]
+        if i > 0:
+            _, prev_end = old_time_stamps[i - 1]
+            jump = start_time - prev_end
+        else:
+            jump = 0
         words = segment.split()
         word_duration = (end_time - start_time) / len(words)
-        word_durations.extend([word_duration] * len(words))
-    return word_durations
+        word_durations_plus_jump.extend(
+            [
+                word_duration + jump if i == 0 else word_duration
+                for i in range(len(words))
+            ]
+        )
+        jumps_alone.extend([jump for i in range(len(words))])
+        if i % 2 == 0:
+            bools.extend([True for i in range(len(words))])
+        else:
+            bools.extend([False for i in range(len(words))])
+        word_durations.extend(
+            [word_duration if i == 0 else word_duration for i in range(len(words))]
+        )
+    return word_durations, word_durations_plus_jump, bools, jumps_alone
 
 
 def calculate_new_time_stamps(
-    old_segments: list[str], old_time_stamps: list[Tuple], new_segments: list[Tuple]
-) -> list[Tuple]:
-    word_durations = calculate_word_durations(old_segments, old_time_stamps)
+    old_segments: list[str],
+    old_time_stamps: list[tuple[int, int]],
+    new_segments: list[list[str, str]],
+) -> list[tuple]:
+    (
+        word_durations,
+        word_durations_plus_jump,
+        bools,
+        jumps_alone,
+    ) = calculate_word_durations(old_segments, old_time_stamps)
     new_time_stamps = []
     current_word = 0  # Initialize current_word index
+    current_start = old_time_stamps[0][0]
     for label, text in new_segments:
         words = text.split()
-        segment_duration = sum(word_durations[current_word : current_word + len(words)])
-        new_time_stamps.append((current_word, current_word + len(words)))
+        if all(bools[current_word : current_word + len(words)]) or not any(
+            bools[current_word : current_word + len(words)]
+        ):
+            segment_duration = sum(
+                word_durations[current_word : current_word + len(words)]
+            )
+            current_start = current_start + jumps_alone[current_word]
+            new_time_stamps.append((current_start, current_start + segment_duration))
+        else:
+            segment_duration = sum(
+                word_durations_plus_jump[current_word : current_word + len(words)]
+            )
+            new_time_stamps.append((current_start, current_start + segment_duration))
         current_word += len(words)  # Increment by word count
+        current_start += segment_duration
     return new_time_stamps
+
+
+def accumulate_text_by_interpolation(text_path: Path, gpt_path: Path) -> list[dict]:
+    text_data = read_text(text_path)
+    old_segments = [segment["text"] for segment in text_data][:7]
+    old_timestamps = [tuple(segment["timestamp"]) for segment in text_data][:7]
+    sentences = get_gpt_sentences(gpt_path)
+    new_segments = [sentence.split(": ") for sentence in sentences]
+    new_timestamps = calculate_new_time_stamps(
+        old_segments, old_timestamps, new_segments
+    )
+    chunks = []
+    for segment, timestamp in zip(new_segments, new_timestamps):
+        chunk = {
+            "text": segment[1],
+            "sentiment": segment[0],
+            "timestamp": list(timestamp),
+        }
+        chunks.append(chunk)
+    return chunks
 
 
 def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list[dict]:
@@ -259,16 +320,17 @@ def main(cfg: DataConfig):
             audio_path, cfg.transcriber.chunk_length_s, cache=cfg.transcriber.use_cache
         )
         prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
-        # OPENAI GPT API Call
         out_gpt_dir = cfg.output_dir / "gpt"
+        out_gpt_dir.mkdir(exist_ok=True)
         gpt_path = out_gpt_dir / text_path.name
+        # OPENAI GPT API Call
         write_gpt_response(prompt, gpt_path, cache=cfg.gpt.use_cache)
-        sentiments = get_gpt_sentiments(gpt_path)
-        chunks = accumulate_text_by_sentiment(text_path, sentiments)
+        chunks = accumulate_text_by_interpolation(text_path, gpt_path)
         # segment videos by GPT outputs
         out_video_dir = cut_video_by_text_chunks(vid_path, chunks, cfg.output_dir)
         # run alphapose
         out_pose_dir = cfg.output_dir / "pose"
+        out_pose_dir.mkdir(exist_ok=True)
         run_alphapose_on_videos(
             root_dir=cfg.alphapose.root_dir,
             output_dir=out_pose_dir,
