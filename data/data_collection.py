@@ -3,10 +3,11 @@ import json
 import openai
 import yt_dlp
 import pyrallis
+import whisperx
 import subprocess
 
 from pathlib import Path
-from typing import NamedTuple, Tuple
+from typing import NamedTuple
 from transformers import pipeline
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
@@ -20,12 +21,48 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 class ASRModelZoo(NamedTuple):
     whisper_small = "openai/whisper-small"
     wav2vec2 = "jonatasgrosman/wav2vec2-large-xlsr-53-english"
+    whisperx_large = "large-v2"
 
 
 class Sentiment(NamedTuple):
     positive = "Positive"
     neutral = "Neutral"
     negative = "Negative"
+
+
+class Whisper:
+    def __init__(self, model_name: str, batch_size: int):
+        self.model_name = model_name
+        self.batch_size = batch_size
+
+    def transcribe(self, audio_path: Path) -> list[dict]:
+        # Load pre-trained ASR model
+        transcriber = pipeline("automatic-speech-recognition", model=self.model_name)
+        transcription = transcriber(
+            str(audio_path), return_timestamps=True, chunk_length_s=self.batch_size
+        )
+        return transcription["chunks"]
+
+
+class WhisperX(Whisper):
+    def __init__(
+        self,
+        model_name: str,
+        batch_size: int,
+        device: str,
+        compute_type: str = "float16",
+    ):
+        self.compute_type = compute_type
+        self.device = device
+        super().__init__(model_name=model_name, batch_size=batch_size)
+
+    def transcribe(self, audio_path: Path) -> list[dict]:
+        model = whisperx.load_model(
+            self.model_name, self.device, compute_type=self.compute_type
+        )
+        audio = whisperx.load_audio(str(audio_path))
+        result = model.transcribe(audio, batch_size=self.batch_size)
+        return result["segments"]
 
 
 def scrape_videos(
@@ -76,7 +113,7 @@ def extract_audio(
 
 
 def transcribe_speech(
-    audio_path: Path, chunk_len_s: float, cache: bool, prefix: str = "text"
+    audio_path: Path, batch_size: int, cache: bool, prefix: str = "text"
 ) -> Path:
     text_dir = audio_path.parents[1] / prefix
     text_dir.mkdir(exist_ok=True)
@@ -84,15 +121,14 @@ def transcribe_speech(
     if cache is True and filepath.exists():
         print(f"skip transcriber, use local {filepath.name}")
     else:
-        # Load pre-trained ASR model
-        transcriber = pipeline(
-            "automatic-speech-recognition", model=ASRModelZoo.whisper_small
+        s2t_model = WhisperX(
+            model_name=ASRModelZoo.whisperx_large,
+            batch_size=batch_size,
+            device="cpu",
         )
-        transcription = transcriber(
-            str(audio_path), return_timestamps=True, chunk_length_s=chunk_len_s
-        )
+        transcription = s2t_model.transcribe(audio_path)
         with open(filepath, "w") as fp:
-            json.dump(transcription["chunks"], fp)
+            json.dump(transcription, fp)
     return filepath
 
 
