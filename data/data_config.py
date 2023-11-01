@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from dataclasses import dataclass
 
 
@@ -15,6 +15,7 @@ class ScraperConfig:
     no_playlist: bool
     desired_agg_duration: int
     quiet_mode: bool
+    urls: Optional[list]
 
 
 @dataclass
@@ -26,6 +27,11 @@ class AudioExtractor:
 class Transcriber:
     use_cache: bool
     chunk_length_s: Optional[int]
+
+
+@dataclass
+class VideoCutter:
+    use_cache: bool
 
 
 @dataclass
@@ -51,6 +57,7 @@ class DataConfig:
     scraper: ScraperConfig
     audio_extractor: AudioExtractor
     transcriber: Transcriber
+    video_cutter: VideoCutter
     gpt: GPT
     alphapose: AlphaPose
     templates: Templates

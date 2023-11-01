@@ -2,16 +2,7 @@ dataset_dir: "/Users/orrav/Documents/Data/human-feedback/raw"
 output_dir: "/Users/orrav/Documents/Data/human-feedback/segments"
 
 actions:
-  - push ups
-  - squats
   - yoga
-  - golf swing
-  - ballet
-  - swimming
-  - slacklining
-  - hitting baseball
-  - strumming guitar
-  - sidekick
 
 scraper:
   run: false
@@ -19,11 +10,12 @@ scraper:
   prefix_prompt: "common mistakes in"
   restrict_filenames: true
   min_vid_duration: 15
-  max_vid_duration: 900
+  max_vid_duration: 1500
   ext: "mp4"
-  no_playlist: true
+  no_playlist: false
   desired_agg_duration: 450
   quiet_mode: false
+  urls: ["PLlnOXr996DzOGHbJsC8nsi8EZ6zvcGMjm"]
 
 audio_extractor:
   use_cache: true
@@ -31,6 +23,9 @@ audio_extractor:
 transcriber:
   use_cache: true
   chunk_length_s: 30
+
+video_cutter:
+  use_cache: true
 
 gpt:
   use_cache: true

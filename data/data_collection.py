@@ -52,9 +52,12 @@ def scrape_videos(
 
     agg_duration = cfg.desired_agg_duration
     max_num_urls = agg_duration // cfg.min_vid_duration
+    url = cfg.urls
+    if url is None:
+        url = f"{cfg.extractor}{max_num_urls}:{prompt}"
 
     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-        error = ydl.download(f"{cfg.extractor}{max_num_urls}:{prompt}")
+        error = ydl.download(url)
         print(error)
 
 
@@ -195,8 +198,8 @@ def calculate_new_time_stamps(
 
 def accumulate_text_by_interpolation(text_path: Path, gpt_path: Path) -> list[dict]:
     text_data = read_text(text_path)
-    old_segments = [segment["text"] for segment in text_data][:7]
-    old_timestamps = [tuple(segment["timestamp"]) for segment in text_data][:7]
+    old_segments = [segment["text"] for segment in text_data]
+    old_timestamps = [tuple(segment["timestamp"]) for segment in text_data]
     sentences = get_gpt_sentences(gpt_path)
     new_segments = [sentence.split(": ") for sentence in sentences]
     new_timestamps = calculate_new_time_stamps(
@@ -267,27 +270,36 @@ def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list
 
 
 def cut_video_by_text_chunks(
-    vid_path: Path, chunks: list[dict], output_dir: Path
-) -> Path:
-    video_output_dir = output_dir / "video"
-    text_output_dir = output_dir / "text"
-    with VideoFileClip(str(vid_path)) as vid:
-        for sentence in chunks:
-            start, end = sentence["timestamp"]
-            sub_vid = vid.subclip(start, end)
-            segment_name = f"{vid_path.stem}_{start}_{end}"
-            vid_segment_path = video_output_dir / f"{segment_name}.mp4"
-            text_segment_path = text_output_dir / f"{segment_name}.json"
+    vid_path: Path,
+    chunks: list[dict],
+    video_output_dir: Path,
+    text_output_dir: Path,
+    cache: bool,
+):
+    vid_segment_dir = video_output_dir / vid_path.stem
+    vid_segment_dir.mkdir(exist_ok=True, parents=True)
+    text_segment_dir = text_output_dir / vid_path.stem
+    text_segment_dir.mkdir(exist_ok=True, parents=True)
+    if cache is True and vid_segment_dir.exists() and text_segment_dir.exists():
+        print(f"skip cutting video chunks, use existing chunks in {vid_segment_dir}")
+    else:
+        with VideoFileClip(str(vid_path)) as vid:
+            for sentence in chunks:
+                start, end = sentence["timestamp"]
+                sub_vid = vid.subclip(start, end)
+                segment_name = f"{vid_path.stem}_{start:.{1}f}_{end:.{1}f}"
+                vid_segment_path = vid_segment_dir / f"{segment_name}.mp4"
+                text_segment_path = text_segment_dir / f"{segment_name}.json"
 
-            sub_vid.write_videofile(str(vid_segment_path))
-            with open(text_segment_path, "w") as fp:
-                json.dump(sentence, fp)
-        sub_vid.close()
-    vid.close()
-    return video_output_dir
+                sub_vid.write_videofile(str(vid_segment_path))
+                with open(text_segment_path, "w") as fp:
+                    json.dump(sentence, fp)
+            sub_vid.close()
+        vid.close()
 
 
 def run_alphapose_on_videos(root_dir: Path, output_dir: Path, vid_dir: Path):
+    output_dir.mkdir(exist_ok=True, parents=True)
     cfg_path = (
         root_dir
         / "configs/halpe_coco_wholebody_136/resnet/256x192_res50_lr1e-3_2x-dcn-combined.yaml"
@@ -313,6 +325,11 @@ def main(cfg: DataConfig):
             print(f"{action}:")
             scrape_videos(cfg=cfg.scraper, action=action, dataset_dir=dataset_dir)
 
+    out_gpt_dir = cfg.output_dir / "gpt"
+    out_gpt_dir.mkdir(exist_ok=True)
+    video_output_dir = cfg.output_dir / "video"
+    text_output_dir = cfg.output_dir / "text"
+
     for vid_path in dataset_dir.rglob("*.mp4"):
         # extract audio and transcription from videos
         audio_path = extract_audio(vid_path, cache=cfg.audio_extractor.use_cache)
@@ -320,22 +337,26 @@ def main(cfg: DataConfig):
             audio_path, cfg.transcriber.chunk_length_s, cache=cfg.transcriber.use_cache
         )
         prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
-        out_gpt_dir = cfg.output_dir / "gpt"
-        out_gpt_dir.mkdir(exist_ok=True)
         gpt_path = out_gpt_dir / text_path.name
         # OPENAI GPT API Call
         write_gpt_response(prompt, gpt_path, cache=cfg.gpt.use_cache)
         chunks = accumulate_text_by_interpolation(text_path, gpt_path)
         # segment videos by GPT outputs
-        out_video_dir = cut_video_by_text_chunks(vid_path, chunks, cfg.output_dir)
-        # run alphapose
-        out_pose_dir = cfg.output_dir / "pose"
-        out_pose_dir.mkdir(exist_ok=True)
-        run_alphapose_on_videos(
-            root_dir=cfg.alphapose.root_dir,
-            output_dir=out_pose_dir,
-            vid_dir=out_video_dir,
+        # TODO: fix audio in segments
+        cut_video_by_text_chunks(
+            vid_path,
+            chunks,
+            video_output_dir,
+            text_output_dir,
+            cache=cfg.video_cutter.use_cache,
         )
+    # run alphapose
+    out_pose_dir = cfg.output_dir / "pose"
+    run_alphapose_on_videos(
+        root_dir=cfg.alphapose.root_dir,
+        output_dir=out_pose_dir,
+        vid_dir=video_output_dir,
+    )
 
 
 if __name__ == "__main__":
