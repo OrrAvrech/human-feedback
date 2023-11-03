@@ -7,8 +7,9 @@ import whisperx
 import subprocess
 
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Optional
 from transformers import pipeline
+from dataclasses import dataclass, asdict
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
 from utils import read_text
@@ -30,6 +31,14 @@ class Sentiment(NamedTuple):
     negative = "Negative"
 
 
+@dataclass
+class TextSegment:
+    text: str
+    start: float
+    end: float
+    sentiment: Optional[str] = None
+
+
 class Whisper:
     def __init__(self, model_name: str, batch_size: int):
         self.model_name = model_name
@@ -41,7 +50,17 @@ class Whisper:
         transcription = transcriber(
             str(audio_path), return_timestamps=True, chunk_length_s=self.batch_size
         )
-        return transcription["chunks"]
+        text_segments = [
+            asdict(
+                TextSegment(
+                    text=seg["text"],
+                    start=seg["timestamp"][0],
+                    end=seg["timestamp"][1],
+                )
+            )
+            for seg in transcription["chunks"]
+        ]
+        return text_segments
 
 
 class WhisperX(Whisper):
@@ -62,7 +81,11 @@ class WhisperX(Whisper):
         )
         audio = whisperx.load_audio(str(audio_path))
         result = model.transcribe(audio, batch_size=self.batch_size)
-        return result["segments"]
+        text_segments = [
+            asdict(TextSegment(text=seg["text"], start=seg["start"], end=seg["end"]))
+            for seg in result["segments"]
+        ]
+        return text_segments
 
 
 def scrape_videos(
@@ -124,7 +147,7 @@ def transcribe_speech(
         s2t_model = WhisperX(
             model_name=ASRModelZoo.whisperx_large,
             batch_size=batch_size,
-            device="cpu",
+            device="cuda",
         )
         transcription = s2t_model.transcribe(audio_path)
         with open(filepath, "w") as fp:
@@ -181,6 +204,7 @@ def calculate_word_durations(
             jump = 0
         words = segment.split()
         word_duration = (end_time - start_time) / len(words)
+
         word_durations_plus_jump.extend(
             [
                 word_duration + jump if i == 0 else word_duration
@@ -199,9 +223,7 @@ def calculate_word_durations(
 
 
 def calculate_new_time_stamps(
-    old_segments: list[str],
-    old_time_stamps: list[tuple[int, int]],
-    new_segments: list[list[str, str]],
+    old_segments: list[str], old_time_stamps: list[tuple], new_segments: list[list]
 ) -> list[tuple]:
     (
         word_durations,
@@ -220,22 +242,26 @@ def calculate_new_time_stamps(
             segment_duration = sum(
                 word_durations[current_word : current_word + len(words)]
             )
-            current_start = current_start + jumps_alone[current_word]
             new_time_stamps.append((current_start, current_start + segment_duration))
+
         else:
             segment_duration = sum(
                 word_durations_plus_jump[current_word : current_word + len(words)]
             )
             new_time_stamps.append((current_start, current_start + segment_duration))
+            current_start = current_start + jumps_alone[current_word]
+
         current_word += len(words)  # Increment by word count
         current_start += segment_duration
     return new_time_stamps
 
 
-def accumulate_text_by_interpolation(text_path: Path, gpt_path: Path) -> list[dict]:
+def accumulate_text_by_interpolation(
+    text_path: Path, gpt_path: Path
+) -> list[TextSegment]:
     text_data = read_text(text_path)
     old_segments = [segment["text"] for segment in text_data]
-    old_timestamps = [tuple(segment["timestamp"]) for segment in text_data]
+    old_timestamps = [(segment["start"], segment["end"]) for segment in text_data]
     sentences = get_gpt_sentences(gpt_path)
     new_segments = [sentence.split(": ") for sentence in sentences]
     new_timestamps = calculate_new_time_stamps(
@@ -243,16 +269,20 @@ def accumulate_text_by_interpolation(text_path: Path, gpt_path: Path) -> list[di
     )
     chunks = []
     for segment, timestamp in zip(new_segments, new_timestamps):
-        chunk = {
-            "text": segment[1],
-            "sentiment": segment[0],
-            "timestamp": list(timestamp),
-        }
-        chunks.append(chunk)
+        chunks.append(
+            TextSegment(
+                text=segment[1],
+                start=timestamp[0],
+                end=timestamp[1],
+                sentiment=segment[0],
+            )
+        )
     return chunks
 
 
-def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list[dict]:
+def accumulate_text_by_sentiment(
+    text_path: Path, sentiments: list[str]
+) -> list[TextSegment]:
     data = read_text(text_path)
     text_segments = [segment["text"] for segment in data]
     samples = []
@@ -277,12 +307,11 @@ def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list
             if Sentiment.negative in accumulated_sentiments:
                 sentiment = Sentiment.negative
 
-            sample = {
-                "timestamp": [start, end],
-                "text": text_paragraph,
-                "sentiment": sentiment,
-            }
-            samples.append(sample)
+            samples.append(
+                TextSegment(
+                    text=text_paragraph, start=start, end=end, sentiment=sentiment
+                )
+            )
             start = data[i]["timestamp"][0]
             end = data[i]["timestamp"][-1]
             text_paragraph = text_segments[i]
@@ -296,40 +325,43 @@ def accumulate_text_by_sentiment(text_path: Path, sentiments: list[str]) -> list
         sentiment = Sentiment.neutral
         print(f"all sentences are {sentiment}")
 
-    sample = {
-        "timestamp": [start, end],
-        "text": text_paragraph,
-        "sentiment": sentiment,
-    }
-    samples.append(sample)
+    samples.append(
+        TextSegment(text=text_paragraph, start=start, end=end, sentiment=sentiment)
+    )
     return samples
 
 
 def cut_video_by_text_chunks(
     vid_path: Path,
-    chunks: list[dict],
+    chunks: list[TextSegment],
     video_output_dir: Path,
     text_output_dir: Path,
     cache: bool,
 ):
     vid_segment_dir = video_output_dir / vid_path.stem
-    vid_segment_dir.mkdir(exist_ok=True, parents=True)
     text_segment_dir = text_output_dir / vid_path.stem
-    text_segment_dir.mkdir(exist_ok=True, parents=True)
     if cache is True and vid_segment_dir.exists() and text_segment_dir.exists():
         print(f"skip cutting video chunks, use existing chunks in {vid_segment_dir}")
     else:
+        vid_segment_dir.mkdir(exist_ok=True, parents=True)
+        text_segment_dir.mkdir(exist_ok=True, parents=True)
         with VideoFileClip(str(vid_path)) as vid:
             for sentence in chunks:
-                start, end = sentence["timestamp"]
+                start, end = sentence.start, sentence.end
                 sub_vid = vid.subclip(start, end)
                 segment_name = f"{vid_path.stem}_{start:.{1}f}_{end:.{1}f}"
                 vid_segment_path = vid_segment_dir / f"{segment_name}.mp4"
                 text_segment_path = text_segment_dir / f"{segment_name}.json"
 
-                sub_vid.write_videofile(str(vid_segment_path))
+                sub_vid.write_videofile(
+                    str(vid_segment_path),
+                    codec="libx264",
+                    audio_codec="aac",
+                    temp_audiofile="temp-audio.m4a",
+                    remove_temp=True,
+                )
                 with open(text_segment_path, "w") as fp:
-                    json.dump(sentence, fp)
+                    json.dump(asdict(sentence), fp)
             sub_vid.close()
         vid.close()
 
@@ -362,7 +394,7 @@ def main(cfg: DataConfig):
             scrape_videos(cfg=cfg.scraper, action=action, dataset_dir=dataset_dir)
 
     out_gpt_dir = cfg.output_dir / "gpt"
-    out_gpt_dir.mkdir(exist_ok=True)
+    out_gpt_dir.mkdir(exist_ok=True, parents=True)
     video_output_dir = cfg.output_dir / "video"
     text_output_dir = cfg.output_dir / "text"
 
@@ -370,7 +402,10 @@ def main(cfg: DataConfig):
         # extract audio and transcription from videos
         audio_path = extract_audio(vid_path, cache=cfg.audio_extractor.use_cache)
         text_path = transcribe_speech(
-            audio_path, cfg.transcriber.chunk_length_s, cache=cfg.transcriber.use_cache
+            audio_path,
+            cfg.transcriber.chunk_length_s,
+            cache=cfg.transcriber.use_cache,
+            prefix="text_whisperx",
         )
         prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
         gpt_path = out_gpt_dir / text_path.name
@@ -378,7 +413,6 @@ def main(cfg: DataConfig):
         write_gpt_response(prompt, gpt_path, cache=cfg.gpt.use_cache)
         chunks = accumulate_text_by_interpolation(text_path, gpt_path)
         # segment videos by GPT outputs
-        # TODO: fix audio in segments
         cut_video_by_text_chunks(
             vid_path,
             chunks,
@@ -386,13 +420,13 @@ def main(cfg: DataConfig):
             text_output_dir,
             cache=cfg.video_cutter.use_cache,
         )
-    # run alphapose
-    out_pose_dir = cfg.output_dir / "pose"
-    run_alphapose_on_videos(
-        root_dir=cfg.alphapose.root_dir,
-        output_dir=out_pose_dir,
-        vid_dir=video_output_dir,
-    )
+    # # run alphapose
+    # out_pose_dir = cfg.output_dir / "pose"
+    # run_alphapose_on_videos(
+    #     root_dir=cfg.alphapose.root_dir,
+    #     output_dir=out_pose_dir,
+    #     vid_dir=video_output_dir,
+    # )
 
 
 if __name__ == "__main__":
