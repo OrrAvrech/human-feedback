@@ -34,4 +34,5 @@ alphapose:
   root_dir: "/Users/orrav/Documents/projects/human-feedback/AlphaPose-master"
 
 templates:
-  sentiment_prompt_path: "./templates/sentiment_prompt.j2"
+  system_prompt_path: "./templates/system_prompt.j2"
+  user_prompt_path: "./templates/user_prompt.j2"

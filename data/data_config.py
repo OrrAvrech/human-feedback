@@ -41,7 +41,8 @@ class GPT:
 
 @dataclass
 class Templates:
-    sentiment_prompt_path: Path
+    system_prompt_path: Path
+    user_prompt_path: Path
 
 
 @dataclass

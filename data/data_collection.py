@@ -155,28 +155,37 @@ def transcribe_speech(
     return filepath
 
 
-def prepare_prompt(text_path: Path, template_path: Path) -> str:
+def prepare_prompt(
+    text_path: Path, system_template_path: Path, user_template_path: Path
+) -> tuple[str, str]:
     data = read_text(text_path)
     text_segments = [segment["text"] for segment in data]
     txt = ""
     for i, seg in enumerate(text_segments):
         txt += f"{i + 1}.{seg}\n"
 
-    templates_dir = template_path.parent
+    templates_dir = system_template_path.parent
     environment = j2.Environment(loader=j2.FileSystemLoader(templates_dir))
-    template = environment.get_template(template_path.name)
+    system_template = environment.get_template(system_template_path.name)
+    user_template = environment.get_template(user_template_path.name)
     sentences = {"sentences": txt}
-    prompt = template.render(sentences)
-    return prompt
+    system_prompt = system_template.render()
+    user_prompt = user_template.render(sentences)
+    return system_prompt, user_prompt
 
 
-def write_gpt_response(prompt: str, output_path: Path, cache: bool):
+def write_gpt_response(
+    system_prompt: str, user_prompt: str, output_path: Path, cache: bool
+):
     if cache is True and output_path.exists():
         print(f"skip ChatGPT, use local {output_path.name}")
     else:
         response = openai.ChatCompletion.create(
             model="gpt-3.5-turbo",
-            messages=[{"role": "system", "content": prompt}],
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
         )
         with open(output_path, "w") as fp:
             json.dump(response, fp)
@@ -407,10 +416,16 @@ def main(cfg: DataConfig):
             cache=cfg.transcriber.use_cache,
             prefix="text_whisperx",
         )
-        prompt = prepare_prompt(text_path, cfg.templates.sentiment_prompt_path)
+        system_prompt, user_prompt = prepare_prompt(
+            text_path,
+            system_template_path=cfg.templates.system_prompt_path,
+            user_template_path=cfg.templates.user_prompt_path,
+        )
         gpt_path = out_gpt_dir / text_path.name
         # OPENAI GPT API Call
-        write_gpt_response(prompt, gpt_path, cache=cfg.gpt.use_cache)
+        write_gpt_response(
+            system_prompt, user_prompt, gpt_path, cache=cfg.gpt.use_cache
+        )
         chunks = accumulate_text_by_interpolation(text_path, gpt_path)
         # segment videos by GPT outputs
         cut_video_by_text_chunks(

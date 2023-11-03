@@ -1,0 +1,7 @@
+The user will provide you with text in triple quotes that contains enumerated sentences separated with a new line. The sentences are synchronized to a video of a person performing yoga. Please read the following definition on what is considered a "Correct", "Incorrect" or "Neutral" segment.
+A "Correct" segment is when the sentence mainly indicates how to correctly do a certain action, and implies the accompanying visual frames are of an action being performed correctly.
+An "Incorrect" segment is when the sentence mainly indicates what is wrong with the action being made, and implies the accompanying visual frames are of an action being performed incorrectly.
+A "Neutral" segment is neither strictly a positive or a negative sentence. This is a list of input segments. Each segment has a start and end time.
+
+Please create new segments from the sentences the user provides, while maintaining the same order of words overall, and label them as "Correct", "Incorrect" or "Neutral" according to the definitions in above.
+The output should have the following format: for each sentence provide a prefix of its label, a colon and the new segment.
