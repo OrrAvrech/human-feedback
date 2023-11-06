@@ -15,7 +15,7 @@ def get_data() -> tuple[Path, Path]:
     else:
         google_app_creds_path = Path.cwd() / "creds.json"
         with open(google_app_creds_path, "w") as fp:
-            json.dump(st.secrets["gcs"], fp)
+            json.dump(st.secrets["gcs"].to_dict(), fp)
         os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(google_app_creds_path)
         client = storage.Client()
         bucket = client.get_bucket(st.secrets["bucket_name"])
