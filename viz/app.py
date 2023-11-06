@@ -1,9 +1,9 @@
+import os
 import json
 import zipfile
 
 import streamlit as st
 from pathlib import Path
-from st_files_connection import FilesConnection
 from google.cloud import storage
 
 
@@ -13,7 +13,10 @@ def get_data() -> tuple[Path, Path]:
         video_dir = Path(st.secrets["video_dir"])
         text_dir = Path(st.secrets["text_dir"])
     else:
-        conn = st.experimental_connection("gcs", type=FilesConnection)
+        google_app_creds_path = Path.cwd() / "creds.json"
+        with open(google_app_creds_path, "w") as fp:
+            json.dump(st.secrets["gcs"], fp)
+        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(google_app_creds_path)
         client = storage.Client()
         bucket = client.get_bucket(st.secrets["bucket_name"])
         blob_name = st.secrets["blob_name"]
