@@ -16,9 +16,8 @@ def get_data() -> tuple[Path, Path]:
         google_app_creds_path = Path.cwd() / "creds.json"
         with open(google_app_creds_path, "w") as fp:
             json.dump(st.secrets["gcs"].to_dict(), fp)
-        os.environ["GOOGLE_APPLICATION_CREDENTIALS"] = str(google_app_creds_path)
-        client = storage.Client()
-        bucket = client.get_bucket(st.secrets["bucket_name"])
+        client = storage.Client.from_service_account_json(str(google_app_creds_path))
+        bucket = client.get_bucket(str(st.secrets["bucket_name"]))
         blob_name = st.secrets["blob_name"]
         blob = bucket.blob(blob_name)
         blob.download_to_filename(blob_name)
