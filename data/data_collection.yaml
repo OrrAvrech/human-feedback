@@ -24,10 +24,12 @@ transcriber:
   use_cache: true
   chunk_length_s: 30
 
-video_cutter:
+sentence_segments:
   use_cache: true
+  use_manual_annotations: true
+  manual_results_path: "/Users/orrav/Documents/projects/human-feedback/annotation/results/project-3-at-2023-11-07-16-24-0b2171f6.json"
 
-gpt:
+video_cutter:
   use_cache: true
 
 alphapose:

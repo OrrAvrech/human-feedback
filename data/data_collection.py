@@ -197,6 +197,21 @@ def get_gpt_sentences(gpt_path: Path) -> list[str]:
     return sentences
 
 
+def parse_annotations(results_path: Path, vid_name: str) -> list[list]:
+    annotations = read_text(results_path)
+    vid_names = {x["data"].get("name"): i for i, x in enumerate(annotations)}
+    vid_idx = vid_names.get(vid_name)
+    vid_annotations = None if vid_idx is None else annotations[vid_idx]
+    new_segments = []
+    if vid_annotations is not None:
+        results = vid_annotations["annotations"][0]["result"]
+        for res in results:
+            label = res["value"]["labels"][0]
+            text = res["value"]["text"]
+            new_segments.append([label, text])
+    return new_segments
+
+
 def calculate_word_durations(
     old_segments, old_time_stamps
 ) -> tuple[list, list, list, list]:
@@ -266,13 +281,11 @@ def calculate_new_time_stamps(
 
 
 def accumulate_text_by_interpolation(
-    text_path: Path, gpt_path: Path
+    text_path: Path, new_segments: list[list]
 ) -> list[TextSegment]:
     text_data = read_text(text_path)
     old_segments = [segment["text"] for segment in text_data]
     old_timestamps = [(segment["start"], segment["end"]) for segment in text_data]
-    sentences = get_gpt_sentences(gpt_path)
-    new_segments = [sentence.split(": ") for sentence in sentences]
     new_timestamps = calculate_new_time_stamps(
         old_segments, old_timestamps, new_segments
     )
@@ -421,12 +434,23 @@ def main(cfg: DataConfig):
             system_template_path=cfg.templates.system_prompt_path,
             user_template_path=cfg.templates.user_prompt_path,
         )
-        gpt_path = out_gpt_dir / text_path.name
-        # OPENAI GPT API Call
-        write_gpt_response(
-            system_prompt, user_prompt, gpt_path, cache=cfg.gpt.use_cache
-        )
-        chunks = accumulate_text_by_interpolation(text_path, gpt_path)
+
+        if cfg.sentence_segments.use_manual_annotations:
+            new_segments = parse_annotations(
+                cfg.sentence_segments.manual_results_path, vid_path.stem
+            )
+        else:
+            gpt_path = out_gpt_dir / text_path.name
+            # OPENAI GPT API Call
+            write_gpt_response(
+                system_prompt,
+                user_prompt,
+                gpt_path,
+                cache=cfg.sentence_segments.use_cache,
+            )
+            sentences = get_gpt_sentences(gpt_path)
+            new_segments = [sentence.split(": ") for sentence in sentences]
+        chunks = accumulate_text_by_interpolation(text_path, new_segments)
         # segment videos by GPT outputs
         cut_video_by_text_chunks(
             vid_path,

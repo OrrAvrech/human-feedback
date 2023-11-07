@@ -1,6 +1,8 @@
 # folders
 MotionBERT-main
 AlphaPose-master
+.streamlit
+*.DS_Store
 
 
 # Byte-compiled / optimized / DLL files

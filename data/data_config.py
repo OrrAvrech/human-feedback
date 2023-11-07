@@ -30,12 +30,14 @@ class Transcriber:
 
 
 @dataclass
-class VideoCutter:
+class SentenceSegments:
     use_cache: bool
+    use_manual_annotations: bool
+    manual_results_path: Path
 
 
 @dataclass
-class GPT:
+class VideoCutter:
     use_cache: bool
 
 
@@ -58,7 +60,7 @@ class DataConfig:
     scraper: ScraperConfig
     audio_extractor: AudioExtractor
     transcriber: Transcriber
+    sentence_segments: SentenceSegments
     video_cutter: VideoCutter
-    gpt: GPT
     alphapose: AlphaPose
     templates: Templates

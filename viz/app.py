@@ -13,18 +13,21 @@ def get_data() -> tuple[Path, Path]:
         video_dir = Path(st.secrets["video_dir"])
         text_dir = Path(st.secrets["text_dir"])
     else:
-        google_app_creds_path = Path.cwd() / "creds.json"
-        with open(google_app_creds_path, "w") as fp:
-            json.dump(st.secrets["gcs"].to_dict(), fp)
-        client = storage.Client.from_service_account_json(str(google_app_creds_path))
-        bucket = client.get_bucket(str(st.secrets["bucket_name"]))
-        blob_name = st.secrets["blob_name"]
-        blob = bucket.blob(blob_name)
-        blob.download_to_filename(blob_name)
-        with zipfile.ZipFile(blob_name) as zp:
-            zp.extractall(Path.cwd())
         video_dir = Path.cwd() / "video"
         text_dir = Path.cwd() / "text"
+        if video_dir.exists() and text_dir.exists():
+            pass
+        else:
+            google_app_creds_path = Path.cwd() / "creds.json"
+            with open(google_app_creds_path, "w") as fp:
+                json.dump(st.secrets["gcs"].to_dict(), fp)
+            client = storage.Client.from_service_account_json(str(google_app_creds_path))
+            bucket = client.get_bucket(str(st.secrets["bucket_name"]))
+            blob_name = st.secrets["blob_name"]
+            blob = bucket.blob(blob_name)
+            blob.download_to_filename(blob_name)
+            with zipfile.ZipFile(blob_name) as zp:
+                zp.extractall(Path.cwd())
     return video_dir, text_dir
 
 
