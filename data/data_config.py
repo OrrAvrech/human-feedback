@@ -13,9 +13,15 @@ class ScraperConfig:
     max_vid_duration: int
     ext: str
     no_playlist: bool
-    desired_agg_duration: int
+    max_num_url: int
     quiet_mode: bool
+    write_auto_subs: bool
+    write_info_json: bool
     urls: Optional[list]
+
+    def __post_init__(self):
+        if len(self.urls) == 0:
+            self.urls = None
 
 
 @dataclass

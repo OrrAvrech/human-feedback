@@ -93,10 +93,13 @@ def scrape_videos(
 ):
     def filter_videos(info_dict):
         duration = info_dict.get("duration")
+        lang = info_dict.get("language")
         if duration and (
             duration < cfg.min_vid_duration or duration > cfg.max_vid_duration
         ):
             return "The video is either too short or too long"
+        if not lang == "en":
+            return "This video is not in English"
 
     prompt = cfg.prefix_prompt + action
     ydl_opts = {
@@ -105,13 +108,14 @@ def scrape_videos(
         "format": cfg.ext,
         "noplaylist": cfg.no_playlist,
         "quiet": cfg.quiet_mode,
+        "writeautomaticsub": cfg.write_auto_subs,
+        "writeinfojson": cfg.write_info_json,
         "outtmpl": {
             "default": f"{dataset_dir / action / video_prefix}/%(title)s.%(ext)s"
         },
     }
 
-    agg_duration = cfg.desired_agg_duration
-    max_num_urls = agg_duration // cfg.min_vid_duration
+    max_num_urls = cfg.max_num_url
     url = cfg.urls
     if url is None:
         url = f"{cfg.extractor}{max_num_urls}:{prompt}"
@@ -420,45 +424,45 @@ def main(cfg: DataConfig):
     video_output_dir = cfg.output_dir / "video"
     text_output_dir = cfg.output_dir / "text"
 
-    for vid_path in dataset_dir.rglob("*.mp4"):
-        # extract audio and transcription from videos
-        audio_path = extract_audio(vid_path, cache=cfg.audio_extractor.use_cache)
-        text_path = transcribe_speech(
-            audio_path,
-            cfg.transcriber.chunk_length_s,
-            cache=cfg.transcriber.use_cache,
-            prefix="text_whisperx",
-        )
-        system_prompt, user_prompt = prepare_prompt(
-            text_path,
-            system_template_path=cfg.templates.system_prompt_path,
-            user_template_path=cfg.templates.user_prompt_path,
-        )
-
-        if cfg.sentence_segments.use_manual_annotations:
-            new_segments = parse_annotations(
-                cfg.sentence_segments.manual_results_path, vid_path.stem
-            )
-        else:
-            gpt_path = out_gpt_dir / text_path.name
-            # OPENAI GPT API Call
-            write_gpt_response(
-                system_prompt,
-                user_prompt,
-                gpt_path,
-                cache=cfg.sentence_segments.use_cache,
-            )
-            sentences = get_gpt_sentences(gpt_path)
-            new_segments = [sentence.split(": ") for sentence in sentences]
-        chunks = accumulate_text_by_interpolation(text_path, new_segments)
-        # segment videos by GPT outputs
-        cut_video_by_text_chunks(
-            vid_path,
-            chunks,
-            video_output_dir,
-            text_output_dir,
-            cache=cfg.video_cutter.use_cache,
-        )
+    # for vid_path in dataset_dir.rglob("*.mp4"):
+    #     # extract audio and transcription from videos
+    #     audio_path = extract_audio(vid_path, cache=cfg.audio_extractor.use_cache)
+    #     text_path = transcribe_speech(
+    #         audio_path,
+    #         cfg.transcriber.chunk_length_s,
+    #         cache=cfg.transcriber.use_cache,
+    #         prefix="text_whisperx",
+    #     )
+    #     system_prompt, user_prompt = prepare_prompt(
+    #         text_path,
+    #         system_template_path=cfg.templates.system_prompt_path,
+    #         user_template_path=cfg.templates.user_prompt_path,
+    #     )
+    #
+    #     if cfg.sentence_segments.use_manual_annotations:
+    #         new_segments = parse_annotations(
+    #             cfg.sentence_segments.manual_results_path, vid_path.stem
+    #         )
+    #     else:
+    #         gpt_path = out_gpt_dir / text_path.name
+    #         # OPENAI GPT API Call
+    #         write_gpt_response(
+    #             system_prompt,
+    #             user_prompt,
+    #             gpt_path,
+    #             cache=cfg.sentence_segments.use_cache,
+    #         )
+    #         sentences = get_gpt_sentences(gpt_path)
+    #         new_segments = [sentence.split(": ") for sentence in sentences]
+    #     chunks = accumulate_text_by_interpolation(text_path, new_segments)
+    #     # segment videos by GPT outputs
+    #     cut_video_by_text_chunks(
+    #         vid_path,
+    #         chunks,
+    #         video_output_dir,
+    #         text_output_dir,
+    #         cache=cfg.video_cutter.use_cache,
+    #     )
     # # run alphapose
     # out_pose_dir = cfg.output_dir / "pose"
     # run_alphapose_on_videos(

@@ -1,21 +1,24 @@
-dataset_dir: "/Users/orrav/Documents/Data/human-feedback/raw"
+dataset_dir: "/Users/orrav/Documents/Data/human-feedback/"
 output_dir: "/Users/orrav/Documents/Data/human-feedback/segments"
 
 actions:
   - yoga
 
 scraper:
-  run: false
+  run: true
   extractor: "ytsearch"
-  prefix_prompt: "common mistakes in"
+  prefix_prompt: ""
   restrict_filenames: true
-  min_vid_duration: 15
-  max_vid_duration: 1500
+  min_vid_duration: 120
+  max_vid_duration: 1800
   ext: "mp4"
   no_playlist: false
-  desired_agg_duration: 450
+  max_num_url: 100
   quiet_mode: false
-  urls: ["PLlnOXr996DzOGHbJsC8nsi8EZ6zvcGMjm"]
+  write_auto_subs: false
+  write_info_json: false
+  # "PLlnOXr996DzOGHbJsC8nsi8EZ6zvcGMjm"
+  urls: []
 
 audio_extractor:
   use_cache: true
