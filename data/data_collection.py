@@ -110,6 +110,7 @@ def scrape_videos(
         "quiet": cfg.quiet_mode,
         "writeautomaticsub": cfg.write_auto_subs,
         "writeinfojson": cfg.write_info_json,
+        "ignoreerrors": True,
         "outtmpl": {
             "default": f"{dataset_dir / action / video_prefix}/%(title)s.%(ext)s"
         },
@@ -424,52 +425,56 @@ def main(cfg: DataConfig):
     video_output_dir = cfg.output_dir / "video"
     text_output_dir = cfg.output_dir / "text"
 
-    # for vid_path in dataset_dir.rglob("*.mp4"):
-    #     # extract audio and transcription from videos
-    #     audio_path = extract_audio(vid_path, cache=cfg.audio_extractor.use_cache)
-    #     text_path = transcribe_speech(
-    #         audio_path,
-    #         cfg.transcriber.chunk_length_s,
-    #         cache=cfg.transcriber.use_cache,
-    #         prefix="text_whisperx",
-    #     )
-    #     system_prompt, user_prompt = prepare_prompt(
-    #         text_path,
-    #         system_template_path=cfg.templates.system_prompt_path,
-    #         user_template_path=cfg.templates.user_prompt_path,
-    #     )
-    #
-    #     if cfg.sentence_segments.use_manual_annotations:
-    #         new_segments = parse_annotations(
-    #             cfg.sentence_segments.manual_results_path, vid_path.stem
-    #         )
-    #     else:
-    #         gpt_path = out_gpt_dir / text_path.name
-    #         # OPENAI GPT API Call
-    #         write_gpt_response(
-    #             system_prompt,
-    #             user_prompt,
-    #             gpt_path,
-    #             cache=cfg.sentence_segments.use_cache,
-    #         )
-    #         sentences = get_gpt_sentences(gpt_path)
-    #         new_segments = [sentence.split(": ") for sentence in sentences]
-    #     chunks = accumulate_text_by_interpolation(text_path, new_segments)
-    #     # segment videos by GPT outputs
-    #     cut_video_by_text_chunks(
-    #         vid_path,
-    #         chunks,
-    #         video_output_dir,
-    #         text_output_dir,
-    #         cache=cfg.video_cutter.use_cache,
-    #     )
-    # # run alphapose
-    # out_pose_dir = cfg.output_dir / "pose"
-    # run_alphapose_on_videos(
-    #     root_dir=cfg.alphapose.root_dir,
-    #     output_dir=out_pose_dir,
-    #     vid_dir=video_output_dir,
-    # )
+    files = dataset_dir.rglob("*.mp4")
+    if len(cfg.filenames) > 0:
+        files = [dataset_dir / "video" / name for name in cfg.filenames]
+
+    for vid_path in files:
+        # extract audio and transcription from videos
+        audio_path = extract_audio(vid_path, cache=cfg.audio_extractor.use_cache)
+        text_path = transcribe_speech(
+            audio_path,
+            cfg.transcriber.chunk_length_s,
+            cache=cfg.transcriber.use_cache,
+            prefix="text",
+        )
+        system_prompt, user_prompt = prepare_prompt(
+            text_path,
+            system_template_path=cfg.templates.system_prompt_path,
+            user_template_path=cfg.templates.user_prompt_path,
+        )
+
+        if cfg.sentence_segments.use_manual_annotations:
+            new_segments = parse_annotations(
+                cfg.sentence_segments.manual_results_path, vid_path.stem
+            )
+        else:
+            gpt_path = out_gpt_dir / text_path.name
+            # OPENAI GPT API Call
+            write_gpt_response(
+                system_prompt,
+                user_prompt,
+                gpt_path,
+                cache=cfg.sentence_segments.use_cache,
+            )
+            sentences = get_gpt_sentences(gpt_path)
+            new_segments = [sentence.split(": ") for sentence in sentences]
+        chunks = accumulate_text_by_interpolation(text_path, new_segments)
+        # segment videos by GPT outputs
+        cut_video_by_text_chunks(
+            vid_path,
+            chunks,
+            video_output_dir,
+            text_output_dir,
+            cache=cfg.video_cutter.use_cache,
+        )
+    # run alphapose
+    out_pose_dir = cfg.output_dir / "pose"
+    run_alphapose_on_videos(
+        root_dir=cfg.alphapose.root_dir,
+        output_dir=out_pose_dir,
+        vid_dir=video_output_dir,
+    )
 
 
 if __name__ == "__main__":

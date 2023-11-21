@@ -62,6 +62,7 @@ class AlphaPose:
 class DataConfig:
     dataset_dir: Path
     output_dir: Path
+    filenames: Optional[list[str]]
     actions: list[str]
     scraper: ScraperConfig
     audio_extractor: AudioExtractor

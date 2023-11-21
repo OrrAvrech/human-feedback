@@ -1,3 +1,5 @@
+import sys
+import ffmpeg
 from pathlib import Path
 from utils import read_text
 import pandas as pd
@@ -23,31 +25,44 @@ def estimate_cost(df: pd.DataFrame, num_prompts: int, buffer: float = 0.2):
     return price_per_hour
 
 
+def get_video_duration(file_path):
+    try:
+        probe = ffmpeg.probe(file_path)
+        video_info = next(s for s in probe["streams"] if s["codec_type"] == "video")
+        duration = float(video_info["duration"])
+        return duration
+    except Exception as e:
+        print(f"Error: {e}")
+        return None
+
+
 def main():
-    text_dir = Path(
-        "/Users/orrav/Documents/projects/mia_starter_project/dataset/squats/text"
-    )
-    csv_path = text_dir.parents[1] / "metadata.csv"
+    dataset_dir = Path(sys.argv[1])
+    text_dir = dataset_dir / "text"
+    vid_dir = dataset_dir / "video"
+    csv_path = dataset_dir / "metadata.csv"
+
     samples = []
     for text_path in text_dir.rglob("*.json"):
         data = read_text(text_path)
         try:
             text_corpus = "".join([segment["text"] for segment in data])
-            last_timestamp = data[-1]["timestamp"]
-            speech_duration = (
-                last_timestamp[0] if last_timestamp[-1] is None else last_timestamp[-1]
-            )
+            num_sentences = len(data)
+            vid_path = vid_dir / f"{text_path.stem}.mp4"
+            duration = get_video_duration(vid_path)
             words = text_corpus.split(" ")
             num_words = len(words)
-            word_per_sec = num_words / speech_duration
+            word_per_sec = num_words / duration
+
         except Exception as e:
             print(f"{text_path.name}\n{e}")
             continue
         sample = {
             "text": text_corpus,
-            "duration": speech_duration,
+            "vid_duration": duration,
             "num_words": num_words,
             "word_per_sec": word_per_sec,
+            "num_sentences": num_sentences,
         }
         samples.append(sample)
 
