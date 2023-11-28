@@ -70,7 +70,7 @@ def main():
             col1, col2, col3, col4 = st.columns(4, gap="large")
 
             pose_path = (
-                pose_dir / single_vid_dir.name / vid_path.stem / f"Alphapose_{vid_path.stem}.mp4"
+                pose_dir / single_vid_dir.name / vid_path.stem / f"AlphaPose_{vid_path.stem}.mp4"
             )
             text_path = text_dir / single_vid_dir.name / f"{vid_path.stem}.json"
             with open(text_path) as fp:
