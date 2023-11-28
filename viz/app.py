@@ -16,7 +16,7 @@ def get_data() -> tuple[Path, Path, Path]:
         video_dir = Path.cwd() / "video"
         text_dir = Path.cwd() / "text"
         pose_dir = Path.cwd() / "pose"
-        if video_dir.exists() and text_dir.exists():
+        if video_dir.exists() and text_dir.exists() and pose_dir.exists():
             pass
         else:
             google_app_creds_path = Path.cwd() / "creds.json"
