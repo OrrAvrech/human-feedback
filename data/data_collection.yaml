@@ -1,16 +1,17 @@
 dataset_dir: "/Users/orrav/Documents/Data/human-feedback/"
 output_dir: "/Users/orrav/Documents/Data/human-feedback/segments"
+filenames: []
 
 actions:
   - yoga
 
 scraper:
-  run: true
+  run: false
   extractor: "ytsearch"
   prefix_prompt: ""
   restrict_filenames: true
   min_vid_duration: 120
-  max_vid_duration: 1800
+  max_vid_duration: 3000
   ext: "mp4"
   no_playlist: false
   max_num_url: 100

@@ -30,3 +30,5 @@ google-cloud-storage
 Jinja2
 openai
 git+https://github.com/m-bain/whisperx.git
+joblib
+typer[all]
