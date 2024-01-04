@@ -1,18 +1,12 @@
-import os
+import sys
 import subprocess
 import multiprocessing
-import sys
 from pathlib import Path
-
 import numpy as np
 
 
 def execute_program(gpu_id: str, program: str):
-    # Set CUDA_VISIBLE_DEVICES to the specified GPU ID
-    os.environ["CUDA_VISIBLE_DEVICES"] = str(gpu_id)
-
-    # Command to execute your GPU-bound program, replace this with your actual command
-    command = f"python {program}"
+    command = f"CUDA_VISIBLE_DEVICES={gpu_id} python {program}"
     print(command)
 
     # Execute the command
@@ -28,7 +22,9 @@ def get_config_maps(config_dir: Path, num_gpus: int, iterations_per_gpu: int):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python run_multigpu.py [program.py] [(Optional) num_gpus] [(Optional) [process_per_gpu]")
+        print(
+            "Usage: python run_multigpu.py [program.py] [(Optional) num_gpus] [(Optional) [process_per_gpu]"
+        )
         sys.exit(1)
 
     # args
@@ -52,7 +48,11 @@ def main():
 
     # Map the function to execute_program and pass GPU IDs as arguments
     gpu_ids = list(range(num_gpus))
-    args = [(gpu_id, f"{program} {configmap[gpu_id][i]}") for gpu_id in gpu_ids for i in range(iterations_per_gpu)]
+    args = [
+        (gpu_id, f"{program} --config_path {configmap[gpu_id][i]}")
+        for gpu_id in gpu_ids
+        for i in range(iterations_per_gpu)
+    ]
     pool.starmap(execute_program, args)
 
     pool.close()

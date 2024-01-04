@@ -1,7 +1,6 @@
 # folders
-MotionBERT-main
-AlphaPose-master
 .streamlit
+experimental
 *.DS_Store
 
 

@@ -8,7 +8,9 @@ app = typer.Typer()
 
 
 def run_single_vid(input_vid: Path, segment_len: int, output_dir: Path):
-    output_pattern = str(output_dir / f"{input_vid.stem}_%03d.mp4")
+    output_vid_dir = output_dir / input_vid.stem
+    output_vid_dir.mkdir(exist_ok=True, parents=True)
+    output_pattern = str(output_vid_dir / f"{input_vid.stem}_%03d.mp4")
     (
         ffmpeg.input(input_vid)
         .output(
