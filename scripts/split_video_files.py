@@ -1,8 +1,10 @@
+import os
 import typer
 import ffmpeg
 from pathlib import Path
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
+from pytorchvideo.data.encoded_video import EncodedVideo
 
 app = typer.Typer()
 
@@ -50,6 +52,35 @@ def folder(
     with ThreadPoolExecutor(max_workers=workers) as executor:
         for sublist in sub_lists:
             executor.submit(run_vid_list, sublist, segment_len, output_dir)
+
+
+@app.command()
+def remove_by_duration(input_dir: Path, duration: float):
+    count = 0
+    for vid_path in input_dir.rglob("*.mp4"):
+        probe = ffmpeg.probe(str(vid_path))
+        try:
+            vid_duration = float(probe["format"]["duration"])
+            if vid_duration < duration:
+                os.remove(str(vid_path))
+                print(f"removing {vid_path.name} with {vid_duration} duration")
+                count += 1
+        except KeyError as e:
+            print(f"Unable to find video duration {e}")
+    print(f"overall, {count} files have been removed")
+
+
+@app.command()
+def remove_by_loading(input_dir: Path):
+    count = 0
+    for vid_path in input_dir.rglob("*.mp4"):
+        try:
+            vid = EncodedVideo.from_path(str(vid_path))
+        except Exception as e:
+            print(f"Unable to load video due to {e}, removing {vid_path.name}...")
+            os.remove(str(vid_path))
+            count += 1
+    print(f"overall, {count} files have been removed")
 
 
 if __name__ == "__main__":
