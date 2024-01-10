@@ -6,6 +6,152 @@ from matplotlib.animation import FuncAnimation
 from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 import mpl_toolkits.mplot3d.axes3d as p3
 from textwrap import wrap
+import pyrender
+import trimesh
+import torch
+from typing import Optional
+import cv2
+
+
+class Renderer:
+    def __init__(self, focal_length, img_res, faces: np.array):
+        """
+        Wrapper around the pyrender renderer to render SMPL meshes.
+        Args:
+            cfg (CfgNode): Model config file.
+            faces (np.array): Array of shape (F, 3) containing the mesh faces.
+            focal_length: 500
+        """
+        self.renderer = pyrender.OffscreenRenderer(
+            viewport_width=img_res, viewport_height=img_res, point_size=1.0
+        )
+        self.focal_length = focal_length
+        self.camera_center = [img_res // 2, img_res // 2]
+        self.faces = faces
+        self.img_res = img_res
+
+    def __call__(
+        self,
+        vertices: np.array,
+        camera_translation: np.array,
+        side_view=False,
+        top_view=False,
+        rot_angle=90,
+        mesh_base_color=(1.0, 1.0, 0.9),
+        scene_bg_color=(0, 0, 0),
+        return_rgba=False,
+    ) -> np.array:
+        """
+        Render meshes on input image
+        Args:
+            vertices (np.array): Array of shape (V, 3) containing the mesh vertices.
+            camera_translation (np.array): Array of shape (3,) with the camera translation.
+            image (torch.Tensor): Tensor of shape (3, H, W) containing the image crop with normalized pixel values.
+            full_frame (bool): If True, then render on the full image.
+            imgname (Optional[str]): Contains the original image filenamee. Used only if full_frame == True.
+        """
+
+        material = pyrender.MetallicRoughnessMaterial(
+            metallicFactor=0.0,
+            alphaMode="OPAQUE",
+            baseColorFactor=(*mesh_base_color, 1.0),
+        )
+
+        camera_translation[0] *= -1.0
+
+        mesh = trimesh.Trimesh(vertices.copy(), self.faces.copy())
+        if side_view:
+            rot = trimesh.transformations.rotation_matrix(
+                np.radians(rot_angle), [0, 1, 0]
+            )
+            mesh.apply_transform(rot)
+        elif top_view:
+            rot = trimesh.transformations.rotation_matrix(
+                np.radians(rot_angle), [1, 0, 0]
+            )
+            mesh.apply_transform(rot)
+        rot = trimesh.transformations.rotation_matrix(np.radians(180), [1, 0, 0])
+        mesh.apply_transform(rot)
+        mesh = pyrender.Mesh.from_trimesh(mesh, material=material)
+
+        scene = pyrender.Scene(
+            bg_color=[*scene_bg_color, 0.0], ambient_light=(0.3, 0.3, 0.3)
+        )
+        scene.add(mesh, "mesh")
+
+        camera_pose = np.eye(4)
+        # camera = pyrender.IntrinsicsCamera(
+        #     fx=self.focal_length,
+        #     fy=self.focal_length,
+        #     cx=self.camera_center[0],
+        #     cy=self.camera_center[1],
+        #     zfar=1000,
+        # )
+        camera_pose[:3, 3] = camera_translation
+        camera = pyrender.IntrinsicsCamera(
+            fx=self.focal_length,
+            fy=self.focal_length,
+            cx=self.camera_center[0],
+            cy=self.camera_center[1],
+            zfar=1e12,
+        )
+
+        # camera_node = pyrender.Node(camera=camera, matrix=camera_pose)
+        # scene.add_node(camera_node)
+        scene.add(camera, pose=camera_pose)
+
+        light_nodes = self.create_raymond_lights()
+        for node in light_nodes:
+            scene.add_node(node)
+
+        color, rend_depth = self.renderer.render(scene)
+        # color = color.astype(np.float32) / 255.0
+        #renderer.delete()
+
+        return color
+
+        # valid_mask = (color[:, :, -1])[:, :, np.newaxis]
+        # if not side_view and not top_view:
+        #     output_img = color[:, :, :3] * valid_mask + (1 - valid_mask) * image
+        # else:
+        #     output_img = color[:, :, :3]
+        #
+        # output_img = output_img.astype(np.float32)
+        # return output_img
+
+    @staticmethod
+    def create_raymond_lights() -> list[pyrender.Node]:
+        """
+        Return raymond light nodes for the scene.
+        """
+        thetas = np.pi * np.array([1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0])
+        phis = np.pi * np.array([0.0, 2.0 / 3.0, 4.0 / 3.0])
+
+        nodes = []
+
+        for phi, theta in zip(phis, thetas):
+            xp = np.sin(theta) * np.cos(phi)
+            yp = np.sin(theta) * np.sin(phi)
+            zp = np.cos(theta)
+
+            z = np.array([xp, yp, zp])
+            z = z / np.linalg.norm(z)
+            x = np.array([-z[1], z[0], 0.0])
+            if np.linalg.norm(x) == 0:
+                x = np.array([1.0, 0.0, 0.0])
+            x = x / np.linalg.norm(x)
+            y = np.cross(z, x)
+
+            matrix = np.eye(4)
+            matrix[:3, :3] = np.c_[x, y, z]
+            nodes.append(
+                pyrender.Node(
+                    light=pyrender.DirectionalLight(color=np.ones(3), intensity=1.0),
+                    matrix=matrix,
+                )
+            )
+
+        return nodes
 
 
 def plot_3d_motion(
@@ -45,7 +191,7 @@ def plot_3d_motion(
 
     fig = plt.figure(figsize=figsize)
     plt.tight_layout()
-    #ax = p3.Axes3D(fig)
+    # ax = p3.Axes3D(fig)
     ax = fig.add_subplot(111, projection="3d")
     init()
     MINS = data.min(axis=0).min(axis=0)
@@ -75,8 +221,8 @@ def plot_3d_motion(
     data[..., 2] -= data[:, 0:1, 2]
 
     def update(index):
-        #ax.lines = []
-        #ax.collections = []
+        # ax.lines = []
+        # ax.collections = []
         ax.view_init(elev=120, azim=-90)
         ax.dist = 7.5
         plot_xzPlane(
@@ -113,27 +259,28 @@ def plot_3d_motion(
     plt.close()
 
 
-
-def viz_smplx(output, model, plot_joints=False,
-         plotting_module='pyrender'):
-
+def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
     vertices = output.vertices.detach().cpu().numpy().squeeze()
     joints = output.joints.detach().cpu().numpy().squeeze()
 
-    print('Vertices shape =', vertices.shape)
-    print('Joints shape =', joints.shape)
+    print("Vertices shape =", vertices.shape)
+    print("Joints shape =", joints.shape)
 
-    if plotting_module == 'pyrender':
+    if plotting_module == "pyrender":
         import pyrender
         import trimesh
+
         vertex_colors = np.ones([vertices.shape[0], 4]) * [0.3, 0.3, 0.3, 0.8]
-        tri_mesh = trimesh.Trimesh(vertices, model.faces,
-                                   vertex_colors=vertex_colors)
+        tri_mesh = trimesh.Trimesh(vertices, model.faces, vertex_colors=vertex_colors)
 
         mesh = pyrender.Mesh.from_trimesh(tri_mesh)
 
         scene = pyrender.Scene()
         scene.add(mesh)
+
+        camera_pose = np.eye(4)
+        camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0, aspectRatio=1.0)
+        scene.add(camera, pose=camera_pose)
 
         if plot_joints:
             sm = trimesh.creation.uv_sphere(radius=0.005)
@@ -143,14 +290,16 @@ def viz_smplx(output, model, plot_joints=False,
             joints_pcl = pyrender.Mesh.from_trimesh(sm, poses=tfs)
             scene.add(joints_pcl)
 
-        pyrender.Viewer(scene, use_raymond_lighting=True)
-    elif plotting_module == 'matplotlib':
+        viewer = pyrender.Viewer(scene, use_raymond_lighting=True)
+
+    elif plotting_module == "matplotlib":
         from matplotlib import pyplot as plt
         from mpl_toolkits.mplot3d import Axes3D
         from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
         fig = plt.figure()
-        ax = fig.add_subplot(111, projection='3d')
+        ax = fig.add_subplot(111, projection="3d")
+        ax.view_init(elev=110, azim=30)
 
         mesh = Poly3DCollection(vertices[model.faces], alpha=0.1)
         face_color = (1.0, 1.0, 0.9)
@@ -158,28 +307,12 @@ def viz_smplx(output, model, plot_joints=False,
         mesh.set_edgecolor(edge_color)
         mesh.set_facecolor(face_color)
         ax.add_collection3d(mesh)
-        ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], color='r')
+        ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], color="r")
 
         if plot_joints:
             ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], alpha=0.1)
+        plt.axis("off")
         plt.show()
-    elif plotting_module == 'open3d':
-        import open3d as o3d
 
-        mesh = o3d.geometry.TriangleMesh()
-        mesh.vertices = o3d.utility.Vector3dVector(
-            vertices)
-        mesh.triangles = o3d.utility.Vector3iVector(model.faces)
-        mesh.compute_vertex_normals()
-        mesh.paint_uniform_color([0.3, 0.3, 0.3])
-
-        geometry = [mesh]
-        if plot_joints:
-            joints_pcl = o3d.geometry.PointCloud()
-            joints_pcl.points = o3d.utility.Vector3dVector(joints)
-            joints_pcl.paint_uniform_color([0.7, 0.3, 0.3])
-            geometry.append(joints_pcl)
-
-        o3d.visualization.draw_geometries(geometry)
     else:
-        raise ValueError('Unknown plotting_module: {}'.format(plotting_module))
+        raise ValueError("Unknown plotting_module: {}".format(plotting_module))
