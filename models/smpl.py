@@ -11,7 +11,7 @@ from pathlib import Path
 @dataclass
 class SMPLConfig:
     gender: str
-    joint_regressor_extra: Optional[Path]
+    joint_regressor_extra: Path
     mean_params: Path
     model_path: Path
     num_body_joints: int
@@ -49,29 +49,3 @@ class SMPL(smplx.SMPLLayer):
             joints = torch.cat([joints, extra_joints], dim=1)
         smpl_output.joints = joints
         return smpl_output
-
-
-
-
-def joints2vertices(J_regressor: torch.Tensor, joints: torch.Tensor) -> torch.Tensor:
-    """Calculates the vertices from the 3D joint locations
-
-    Parameters
-    ----------
-    J_regressor : torch.tensor JxV
-        The regressor array that is used to calculate the joints from the
-        position of the vertices
-    joints : torch.tensor BxJx3
-        The tensor of joint locations
-
-    Returns
-    -------
-    torch.tensor BxVx3
-        The location of the vertices
-    """
-    # Calculate the transpose of the regressor matrix
-    J_regressor_T = torch.transpose(J_regressor, 0, 1)
-
-    # Perform the inverse operation using einsum
-    return torch.einsum("bjk,ji->bik", [joints, J_regressor_T])
-
