@@ -191,8 +191,7 @@ def plot_3d_motion(
 
     fig = plt.figure(figsize=figsize)
     plt.tight_layout()
-    # ax = p3.Axes3D(fig)
-    ax = fig.add_subplot(111, projection="3d")
+    ax = p3.Axes3D(fig)
     init()
     MINS = data.min(axis=0).min(axis=0)
     MAXS = data.max(axis=0).max(axis=0)
@@ -221,8 +220,8 @@ def plot_3d_motion(
     data[..., 2] -= data[:, 0:1, 2]
 
     def update(index):
-        # ax.lines = []
-        # ax.collections = []
+        ax.lines = []
+        ax.collections = []
         ax.view_init(elev=120, azim=-90)
         ax.dist = 7.5
         plot_xzPlane(
@@ -316,3 +315,4 @@ def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
 
     else:
         raise ValueError("Unknown plotting_module: {}".format(plotting_module))
+

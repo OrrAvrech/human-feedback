@@ -1,0 +1,6 @@
+streamlit
+numpy
+ffmpeg-python
+PyYAML
+gcsfs
+st-files-connection
