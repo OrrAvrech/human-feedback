@@ -11,10 +11,10 @@ from pathlib import Path
 @dataclass
 class SMPLConfig:
     gender: str
-    joint_regressor_extra: Path
     mean_params: Path
     model_path: Path
     num_body_joints: int
+    joint_regressor_extra: Optional[Path] = None
 
 
 class SMPL(smplx.SMPLLayer):
