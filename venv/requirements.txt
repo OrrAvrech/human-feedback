@@ -64,8 +64,6 @@ coloredlogs==15.0.1
     # via onnxruntime
 colorlog==6.7.0
     # via optuna
-contourpy==1.1.1
-    # via matplotlib
 ctranslate2==3.23.0
     # via faster-whisper
 cycler==0.12.1
@@ -95,8 +93,6 @@ filelock==3.12.4
     #   transformers
 flatbuffers==23.5.26
     # via onnxruntime
-fonttools==4.43.1
-    # via matplotlib
 frozenlist==1.4.0
     # via
     #   aiohttp
@@ -213,7 +209,7 @@ markupsafe==2.1.3
     # via
     #   jinja2
     #   mako
-matplotlib==3.8.0
+matplotlib==3.3.4
     # via
     #   -r requirements.in
     #   pyannote-metrics
@@ -248,7 +244,6 @@ numpy==1.26.1
     #   -r requirements.in
     #   altair
     #   asteroid-filterbanks
-    #   contourpy
     #   ctranslate2
     #   fvcore
     #   imageio
@@ -295,7 +290,6 @@ packaging==23.2
     #   huggingface-hub
     #   lightning
     #   lightning-utilities
-    #   matplotlib
     #   onnxruntime
     #   optuna
     #   pooch

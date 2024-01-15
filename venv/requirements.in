@@ -21,7 +21,7 @@ pyrallis
 PyYAML
 soundfile
 black
-matplotlib
+matplotlib==3.3.4
 streamlit
 simple-parsing
 gcsfs

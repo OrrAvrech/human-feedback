@@ -17,7 +17,7 @@ class SMPLConfig:
     joint_regressor_extra: Optional[Path] = None
 
 
-class SMPL(smplx.SMPLLayer):
+class SMPL4DHumans(smplx.SMPLLayer):
     def __init__(self, *args, joint_regressor_extra: Optional[str] = None, update_hips: bool = False, **kwargs):
         """
         Extension of the official SMPL implementation to support more joints.
@@ -25,7 +25,7 @@ class SMPL(smplx.SMPLLayer):
             Same as SMPLLayer.
             joint_regressor_extra (str): Path to extra joint regressor.
         """
-        super(SMPL, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         smpl_to_openpose = [24, 12, 17, 19, 21, 16, 18, 20, 0, 2, 5, 8, 1, 4,
                             7, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34]
 
@@ -38,7 +38,7 @@ class SMPL(smplx.SMPLLayer):
         """
         Run forward pass. Same as SMPL and also append an extra set of joints if joint_regressor_extra is specified.
         """
-        smpl_output = super(SMPL, self).forward(*args, **kwargs)
+        smpl_output = super().forward(*args, **kwargs)
         joints = smpl_output.joints[:, self.joint_map, :]
         if self.update_hips:
             joints[:,[9,12]] = joints[:,[9,12]] + \
