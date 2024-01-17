@@ -223,7 +223,8 @@ def plot_3d_motion(
     def update(index):
         ax.lines = []
         ax.collections = []
-        ax.view_init(elev=120, azim=-90)
+        # ax.view_init(elev=120, azim=-90)
+        ax.view_init(elev=-90, azim=-90)
         ax.dist = 7.5
         plot_xzPlane(
             MINS[0] - trajec[index, 0],
@@ -311,8 +312,41 @@ def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
 
         if plot_joints:
             ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], alpha=0.1)
+            for i, (xi, yi, zi) in enumerate(joints):
+                ax.text(xi, yi, zi, f'{i}', color='red')
         plt.axis("off")
         plt.show()
 
     else:
         raise ValueError("Unknown plotting_module: {}".format(plotting_module))
+
+
+def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, fps=120):
+    frame_number = joints_batch.shape[0]
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection="3d")
+    ax.view_init(elev=270, azim=270)
+    ax.grid(b=False)
+    plt.tight_layout()
+    plt.axis("off")
+
+    def update(idx):
+        ax.collections = []
+        ax.lines = []
+        vertices = vertices_batch[idx, ...]
+        joints = joints_batch[idx, ...]
+        mesh = Poly3DCollection(vertices[model.faces], alpha=0.1)
+        face_color = (1.0, 1.0, 0.9)
+        edge_color = (0, 0, 0)
+        mesh.set_edgecolor(edge_color)
+        mesh.set_facecolor(face_color)
+        ax.add_collection3d(mesh)
+        ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], color="r")
+    
+    ani = FuncAnimation(
+        fig, update, frames=frame_number, interval=1000 / fps, repeat=False
+    )
+
+    ani.save(save_path, fps=fps)
+    plt.close()
