@@ -185,7 +185,7 @@ def plot_3d_motion(
         ]
         xz_plane = Poly3DCollection([verts])
         xz_plane.set_facecolor((0.5, 0.5, 0.5, 0.5))
-        ax.add_collection3d(xz_plane)
+        # ax.add_collection3d(xz_plane)
 
     data = joints.copy().reshape(len(joints), -1, 3)
 
@@ -321,8 +321,17 @@ def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
         raise ValueError("Unknown plotting_module: {}".format(plotting_module))
 
 
-def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, fps=120):
+def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, kinematic_tree, fps=120):
     frame_number = joints_batch.shape[0]
+
+    colors_orange = [
+        "#DD5A37",
+        "#D69E00",
+        "#B75A39",
+        "#FF6D00",
+        "#DDB50E",
+    ]  # Generation color
+    colors = colors_orange
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
@@ -343,6 +352,19 @@ def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, fps=120):
         mesh.set_facecolor(face_color)
         ax.add_collection3d(mesh)
         ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], color="r")
+
+        for i, (chain, color) in enumerate(zip(kinematic_tree, colors)):
+            if i < 5:
+                linewidth = 4.0
+            else:
+                linewidth = 2.0
+            ax.plot3D(
+                joints[chain, 0],
+                joints[chain, 1],
+                joints[chain, 2],
+                linewidth=linewidth,
+                color=color,
+            )
     
     ani = FuncAnimation(
         fig, update, frames=frame_number, interval=1000 / fps, repeat=False
