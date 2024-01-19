@@ -1,0 +1,39 @@
+from pathlib import Path
+from data.datasets import BaseMotionSplit
+from data.humanml.motion_process import recover_from_ric, process_file
+from data.humanml.kinematic_trees import T2M_KINEMATIC_CHAIN
+from perturbate.transforms import random_motion_warping, get_smpl_model
+from utils.visualize import plot_3d_motion
+
+
+def main():
+    dataset_dir = Path("/Users/orrav/Documents/Data/HumanML3D/HumanML3D")
+    smpl_dir = Path("./models/data")
+    max_frames = 196
+    num_joints = 22
+    ds = BaseMotionSplit(dataset_dir=dataset_dir,
+                         motion_dir="new_joint_vecs",
+                         split="train",
+                         max_frames=max_frames)
+    smpl_model = get_smpl_model(smpl_dir)
+
+    motion = ds[0]
+    
+    joints = recover_from_ric(motion, num_joints)
+    parents = smpl_model.parents[:num_joints]
+    posed_joint_positions = random_motion_warping(joints, parents, pert_perc=0.05, num_indices=1)
+    # posed_data = process_file(posed_joint_positions)[0]
+
+    save_dir = Path("/Users/orrav/Documents/Data/human-feedback/experiments")
+    ani_save_path = save_dir / f"humanml3d_posed_0.mp4"
+    joints_np  = joints.detach().numpy()
+    posed_joints_np = posed_joint_positions.numpy()
+    plot_3d_motion(ani_save_path, T2M_KINEMATIC_CHAIN, posed_joints_np, title=ani_save_path.stem)
+
+    
+    
+
+
+
+if __name__ == "__main__":
+    main()

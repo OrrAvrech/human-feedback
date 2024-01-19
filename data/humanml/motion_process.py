@@ -161,7 +161,7 @@ def extract_features(positions, feet_thre, n_raw_offsets, kinematic_chain, face_
     return data
 
 
-def process_file(positions, feet_thre):
+def process_file(positions, feet_thre=0.002):
     # (seq_len, joints_num, 3)
     #     '''Down Sample'''
     #     positions = positions[::ds_num]
