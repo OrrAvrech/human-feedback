@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 from data.datasets import BaseMotionSplit
 from data.humanml.motion_process import recover_from_ric, process_file
@@ -9,8 +10,13 @@ from utils.visualize import plot_3d_motion
 def main():
     dataset_dir = Path("/Users/orrav/Documents/Data/HumanML3D/HumanML3D")
     smpl_dir = Path("./models/data")
+    save_dir = Path("/Users/orrav/Documents/Data/human-feedback/experiments/humanml3d")
+    save_dir.mkdir(exist_ok=True, parents=True)
     max_frames = 196
     num_joints = 22
+    num_iter = 3
+
+
     ds = BaseMotionSplit(dataset_dir=dataset_dir,
                          motion_dir="new_joint_vecs",
                          split="train",
@@ -18,17 +24,28 @@ def main():
     smpl_model = get_smpl_model(smpl_dir)
 
     motion = ds[0]
-    
     joints = recover_from_ric(motion, num_joints)
-    parents = smpl_model.parents[:num_joints]
-    posed_joint_positions = random_motion_warping(joints, parents, pert_perc=0.05, num_indices=1)
-    # posed_data = process_file(posed_joint_positions)[0]
-
-    save_dir = Path("/Users/orrav/Documents/Data/human-feedback/experiments")
-    ani_save_path = save_dir / f"humanml3d_posed_0.mp4"
     joints_np  = joints.detach().numpy()
-    posed_joints_np = posed_joint_positions.numpy()
-    plot_3d_motion(ani_save_path, T2M_KINEMATIC_CHAIN, posed_joints_np, title=ani_save_path.stem)
+    parents = smpl_model.parents[:num_joints]
+
+    saved_files = []
+    ani_save_path = save_dir / "input_motion.mp4"
+    plot_3d_motion(ani_save_path, T2M_KINEMATIC_CHAIN, joints_np, title="input-motion", fps=30)
+    saved_files.append(ani_save_path)
+
+    for i in range(num_iter):
+        posed_joint_positions = random_motion_warping(joints, parents, pert_perc=0.05, num_indices=1)
+        # posed_data = process_file(posed_joint_positions)[0]
+        ani_save_path = save_dir / f"humanml3d_posed_{i}.mp4"
+        posed_joints_np = posed_joint_positions.numpy()
+        plot_3d_motion(ani_save_path, T2M_KINEMATIC_CHAIN, posed_joints_np, title=f"iter-{i+1}", fps=30)
+        saved_files.append(ani_save_path)
+
+    save_file = save_dir / "humanml3d_schema11.mp4"
+    ffmpeg_rep_files = [f' -i {str(f)} ' for f in saved_files]
+    hstack_args = f' -filter_complex hstack=inputs={len(saved_files)}'
+    ffmpeg_rep_cmd = f'ffmpeg -y -loglevel warning ' + ''.join(ffmpeg_rep_files) + f'{hstack_args} {str(save_file)}'
+    os.system(ffmpeg_rep_cmd)
 
     
     
