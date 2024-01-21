@@ -9,6 +9,12 @@ from pathlib import Path
 import torch
 from tqdm import tqdm
 
+# Right/Left foot
+FID_R, FID_L = [8, 11], [7, 10]
+# Face direction, r_hip, l_hip, sdr_r, sdr_l
+FACE_JOINT_INDX = [2, 1, 17, 16]
+
+
 # positions (batch, joint_num, 3)
 def uniform_skeleton(positions, target_offset):
     src_skel = Skeleton(n_raw_offsets, kinematic_chain, 'cpu')
@@ -387,6 +393,7 @@ def recover_from_rot(data, joints_num, skeleton):
     positions = skeleton.forward_kinematics_cont6d(cont6d_params, r_pos)
 
     return positions
+
 
 def recover_rot(data):
     # dataset [bs, seqlen, 263/251] HumanML/KIT
