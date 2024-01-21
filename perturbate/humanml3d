@@ -1,7 +1,7 @@
 import os
 import torch
 from pathlib import Path
-from data.datasets import BaseMotionSplit
+from data.datasets import BaseMotionSplit, BaseMotion
 from data.humanml.motion_process import recover_from_ric, extract_features, FID_R, FID_L, FACE_JOINT_INDX
 from data.humanml.kinematic_trees import T2M_KINEMATIC_CHAIN, T2M_RAW_OFFSETS
 from perturbate.transforms import random_motion_warping, get_smpl_model
@@ -39,10 +39,10 @@ def main():
     plot_3d_motion(ani_save_path, T2M_KINEMATIC_CHAIN, joints_np, title="input-motion", fps=30)
     saved_files.append(ani_save_path)
 
-    output_dir = human_feedback_dir / npy_path.name
+    output_dir = human_feedback_dir / npy_path.stem
     output_dir.mkdir(exist_ok=True)
     for i in range(num_iter):
-        posed_joint_positions = random_motion_warping(joints, parents, pert_perc=0.03)
+        posed_joint_positions, pert_frames = random_motion_warping(joints, parents, pert_perc=0.05)
         posed_joints_np = posed_joint_positions.numpy()
         posed_data = extract_features(posed_joints_np, feet_thre=0.002,
                                       n_raw_offsets=torch.from_numpy(T2M_RAW_OFFSETS),
@@ -53,7 +53,8 @@ def main():
         print(f"save file {str(output_filepath)}")
 
         ani_save_path = save_dir / f"humanml3d_posed_{i}.mp4"
-        plot_3d_motion(ani_save_path, T2M_KINEMATIC_CHAIN, posed_joints_np, title=f"iter-{i+1}", fps=30)
+        plot_3d_motion(ani_save_path, T2M_KINEMATIC_CHAIN, posed_joints_np, title=f"iter-{i+1}", fps=30,
+                       pert_frames=pert_frames)
         saved_files.append(ani_save_path)
 
     save_file = save_dir / "humanml3d_schema11.mp4"

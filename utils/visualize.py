@@ -163,10 +163,12 @@ def plot_3d_motion(
     fps=120,
     radius=3,
     vis_mode="default",
+    pert_frames=None
 ):
     # matplotlib.use("Agg")
 
     title = "\n".join(wrap(title, 20))
+    pert_frames = [] if pert_frames is None else pert_frames
 
     def init():
         # ax.set_xlim3d([-radius / 2, radius / 2])
@@ -185,7 +187,7 @@ def plot_3d_motion(
         ]
         xz_plane = Poly3DCollection([verts])
         xz_plane.set_facecolor((0.5, 0.5, 0.5, 0.5))
-        # ax.add_collection3d(xz_plane)
+        ax.add_collection3d(xz_plane)
 
     data = joints.copy().reshape(len(joints), -1, 3)
 
@@ -223,8 +225,8 @@ def plot_3d_motion(
     def update(index):
         ax.lines = []
         ax.collections = []
-        # ax.view_init(elev=120, azim=-90)
-        ax.view_init(elev=-90, azim=-90)
+        ax.view_init(elev=120, azim=-90)
+        # ax.view_init(elev=-90, azim=-90)
         ax.dist = 7.5
         plot_xzPlane(
             MINS[0] - trajec[index, 0],
@@ -234,7 +236,8 @@ def plot_3d_motion(
             MAXS[2] - trajec[index, 1],
         )
 
-        for i, (chain, color) in enumerate(zip(kinematic_tree, colors)):
+        used_colors = colors_orange if index in pert_frames else colors_blue
+        for i, (chain, color) in enumerate(zip(kinematic_tree, used_colors)):
             if i < 5:
                 linewidth = 4.0
             else:

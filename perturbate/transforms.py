@@ -84,7 +84,10 @@ def random_motion_warping(joints, parents, pert_perc, num_indices=1):
     posed_joints = posed_joints.detach().cpu().numpy()
 
     warped_joints = joints.detach().cpu().numpy()
+    pert_frame_indices = []
     for posed_idx, i in enumerate(pert_indices):
+        pert_frame_indices += list(range(i - window_size, i + window_size))
+
         point_before_1 = warped_joints[i - window_size, ...]
         point_before_2 = posed_joints[posed_idx, ...]
         vec_before = batch_linear_interpolation(point_before_1, point_before_2, window_size)
@@ -97,7 +100,7 @@ def random_motion_warping(joints, parents, pert_perc, num_indices=1):
         warped_joints[i : i + window_size] = vec_after
 
     warped_joints = torch.Tensor(warped_joints)
-    return warped_joints
+    return warped_joints, pert_frame_indices
 
 
 def sample_integers_with_spacing(x, start, end, window_size):
