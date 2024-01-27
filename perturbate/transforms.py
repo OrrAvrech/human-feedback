@@ -1,13 +1,10 @@
+import random
 from scipy.spatial.transform import Rotation
 from smplx.lbs import batch_rigid_transform
 from models.smpl import SMPLConfig
-
-
 import numpy as np
 import torch
 from smplx import SMPL
-
-
 from dataclasses import asdict
 from pathlib import Path
 
@@ -49,7 +46,8 @@ def generate_random_rotation_matrices(batch_size, num_joints, num_indices=1):
     rotations = np.tile(np.eye(3)[None, None, :, :], (batch_size, num_joints, 1, 1))
 
     # Randomly sample indices for each batch
-    sampled_indices = np.random.choice(num_joints, size=(batch_size, num_indices))
+    joint_arr = np.arange(1, num_joints)
+    sampled_indices = np.random.choice(joint_arr, size=(batch_size, num_indices))
 
     # Generate random rotation matrices for the sampled indices
     sampled_rotations = Rotation.random(batch_size * num_indices).as_matrix()
@@ -74,7 +72,7 @@ def random_motion_warping(joints, parents, pert_perc, num_indices=1):
     rotation_mats = generate_random_rotation_matrices(num_frames, num_joints, num_indices)
     pert_frames = max(int(num_frames * pert_perc), 2)
     jump = num_frames // pert_frames
-    window_size = jump // 2
+    window_size = int(jump // random.uniform(1.5, 4))
     pert_indices = sample_integers_with_spacing(pert_frames, 0, num_frames, window_size)
 
     pert_joints = joints[pert_indices, ...]
@@ -86,7 +84,7 @@ def random_motion_warping(joints, parents, pert_perc, num_indices=1):
     warped_joints = joints.detach().cpu().numpy()
     pert_frame_indices = []
     for posed_idx, i in enumerate(pert_indices):
-        pert_frame_indices += list(range(i - window_size, i + window_size))
+        pert_frame_indices += list(range(i - window_size, i + window_size + 1))
 
         point_before_1 = warped_joints[i - window_size, ...]
         point_before_2 = posed_joints[posed_idx, ...]
