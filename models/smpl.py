@@ -18,7 +18,6 @@ class SMPLConfig:
     mean_params: Path
     model_path: Path
     num_body_joints: int
-    num_betas: int
     joint_regressor_extra: Optional[Path] = None
 
 

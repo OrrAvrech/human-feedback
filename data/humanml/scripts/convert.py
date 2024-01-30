@@ -1,3 +1,4 @@
+import tqdm
 import typer
 import torch
 import joblib
@@ -46,7 +47,7 @@ def moyo(
     smpl_dir: Optional[Path] = Path("./models/data"),
 ) -> tuple[list, list, list]:
     positions_list, data_list, rec_ric_data_list = [], [], []
-    for pkl_path in dataset_dir.rglob("*.pkl"):
+    for pkl_path in tqdm(dataset_dir.rglob("*.pkl")):
         moyo_smpl = np.load(pkl_path, allow_pickle=True)
         filename_npy = f"{pkl_path.stem}.npy"
 
@@ -107,7 +108,7 @@ def humans4d(
     max_frames: Optional[int] = 196,
 ) -> tuple[list, list, list]:
     positions_list, data_list, rec_ric_data_list = [], [], []
-    for pkl_path in dataset_dir.rglob("*.pkl"):
+    for pkl_path in tqdm(dataset_dir.rglob("*.pkl")):
         positions, _, _, _ = load_4d_humans(
             pkl_path, smpl_dir, NUM_JOINTS_HUMANML, max_frames, transform=None
         )
