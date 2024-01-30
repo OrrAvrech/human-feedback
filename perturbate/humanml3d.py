@@ -5,7 +5,8 @@ from pathlib import Path
 from data.datasets import BaseMotionSplit, BaseMotion
 from data.humanml.motion_process import recover_from_ric, extract_features, FID_R, FID_L, FACE_JOINT_INDX
 from data.humanml.kinematic_trees import T2M_KINEMATIC_CHAIN, T2M_RAW_OFFSETS
-from perturbate.transforms import random_motion_warping, get_smpl_model
+from models.smpl import get_smpl_model
+from perturbate.transforms import random_motion_warping
 import numpy as np
 from typing import Optional
 from concurrent.futures import ThreadPoolExecutor
@@ -37,13 +38,8 @@ def save_random_perturbations(motion_file_list: list[Path], num_joints: int, par
 
 def main(dataset_dir: Path, smpl_dir: Path, max_frames: Optional[int] = None,
          num_joints: Optional[int] = 22, num_iter: Optional[int] = 3, workers: Optional[int] = 1):
-    # dataset_dir = Path("/Users/orrav/Documents/Data/HumanML3D/HumanML3D")
     human_feedback_dir = dataset_dir / "human_feedback" / "vecs_11"
     human_feedback_dir.mkdir(exist_ok=True, parents=True)
-    # smpl_dir = Path("./models/data")
-    # max_frames = None
-    # num_joints = 22
-    # num_iter = 3
 
     # ds = BaseMotionSplit(dataset_dir=dataset_dir,
     #                      motion_dir="new_joint_vecs",
