@@ -99,7 +99,10 @@ class SMPL4DHumans(smplx.SMPLLayer):
         return smpl_output
 
 
-def get_smpl_model(smpl_dir: Path, num_joints: int = 23):
+def get_smpl_model(smpl_dir: Optional[Path] = None, num_joints: int = 23):
+    if smpl_dir is None:
+        smpl_dir = Path(__file__).resolve().parent / "data"
+        
     smpl_cfg = SMPLConfig(
         gender="neutral",
         # joint_regressor_extra=smpl_dir / "SMPL_to_J19.pkl",

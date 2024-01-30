@@ -187,7 +187,8 @@ def process_file(positions, feet_thre=0.002):
     #     '''Down Sample'''
     #     positions = positions[::ds_num]
 
-    example_id_path = Path("./examples/000021.npy")
+    current_script_directory = Path(__file__).resolve().parent
+    example_id_path = Path(current_script_directory / "examples" / "000021.npy")
     example_data = np.load(example_id_path)
     example_data = example_data.reshape(len(example_data), -1, 3)
     example_data = torch.from_numpy(example_data)

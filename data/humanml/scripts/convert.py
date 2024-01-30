@@ -1,7 +1,8 @@
-import tqdm
 import typer
 import torch
 import joblib
+import pickle
+from tqdm import tqdm
 from pathlib import Path
 from typing import Optional
 from models.smpl import get_smpl_model, get_smpl_output
@@ -44,11 +45,14 @@ def moyo(
     dataset_dir: Path,
     joints_dir: Optional[Path] = None,
     humanml_dir: Optional[Path] = None,
-    smpl_dir: Optional[Path] = Path("./models/data"),
+    smpl_dir: Optional[Path] = None,
 ) -> tuple[list, list, list]:
     positions_list, data_list, rec_ric_data_list = [], [], []
     for pkl_path in tqdm(dataset_dir.rglob("*.pkl")):
-        moyo_smpl = np.load(pkl_path, allow_pickle=True)
+        try:
+            with open(pkl_path, "rb") as fp: moyo_smpl = pickle.load(fp)
+        except pickle.UnpicklingError:
+            print(f"Error loading {pkl_path}")
         filename_npy = f"{pkl_path.stem}.npy"
 
         smpl_params = dict()
@@ -104,7 +108,7 @@ def humans4d(
     dataset_dir: Path,
     joints_dir: Optional[Path] = None,
     humanml_dir: Optional[Path] = None,
-    smpl_dir: Optional[Path] = Path("./models/data"),
+    smpl_dir: Optional[Path] = None,
     max_frames: Optional[int] = 196,
 ) -> tuple[list, list, list]:
     positions_list, data_list, rec_ric_data_list = [], [], []
