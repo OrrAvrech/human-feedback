@@ -29,5 +29,5 @@ class BaseMotionSplit(BaseMotion):
         with open(self.split_file, 'r') as f:
             for line in f.readlines():
                 id_list.append(line.strip())
-        self.motion_file_list = [p for p in self.motions_list if p.stem in id_list]
+        self.motion_file_list = [p for p in self.motion_file_list if p.stem in id_list]
     
