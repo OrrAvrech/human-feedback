@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -11,6 +12,7 @@ import trimesh
 import torch
 from typing import Optional
 import cv2
+from data.humanml.kinematic_trees import T2M_KINEMATIC_CHAIN
 
 
 class Renderer:
@@ -106,7 +108,7 @@ class Renderer:
 
         color, rend_depth = self.renderer.render(scene)
         # color = color.astype(np.float32) / 255.0
-        #renderer.delete()
+        # renderer.delete()
 
         return color
 
@@ -154,16 +156,164 @@ class Renderer:
         return nodes
 
 
+class MeshViewer:
+    def __init__(self, width=1600, height=1600, use_offscreen=True):
+        self.width, self.height = width, height
+        self.use_offscreen = use_offscreen
+        self.render_wireframe = False
+
+        self.mat_constructor = pyrender.MetallicRoughnessMaterial
+        self.trimesh_to_pymesh = pyrender.Mesh.from_trimesh
+
+        self.scene = pyrender.Scene(
+            bg_color=(255, 255, 255, 0), ambient_light=(0.3, 0.3, 0.3)
+        )
+
+        pc = pyrender.PerspectiveCamera(
+            yfov=np.pi / 3.0, aspectRatio=float(width) / height
+        )
+        camera_pose = np.eye(4)
+        camera_pose[:3, 3] = np.array([0, 0, 3.0])
+        self.camera_node = self.scene.add(pc, pose=camera_pose, name="pc-camera")
+
+        self.figsize = (width, height)
+
+        if self.use_offscreen:
+            self.viewer = pyrender.OffscreenRenderer(*self.figsize)
+            self.use_raymond_lighting(4.0)
+        else:
+            self.viewer = pyrender.Viewer(
+                self.scene,
+                use_raymond_lighting=True,
+                viewport_size=self.figsize,
+                cull_faces=False,
+                run_in_thread=True,
+            )
+
+    def set_cam_trans(self, trans=[0, 0, 3.0]):
+        if isinstance(trans, list):
+            trans = np.array(trans)
+        camera_pose = np.eye(4)
+        camera_pose[:3, 3] = trans
+        self.scene.set_pose(self.camera_node, pose=camera_pose)
+
+    def update_camera_pose(self, camera_pose):
+        self.scene.set_pose(self.camera_node, pose=camera_pose)
+
+    def close_viewer(self):
+        if self.viewer.is_active:
+            self.viewer.close_external()
+
+    def set_meshes(self, meshes, group_name="static", poses=[]):
+        for node in self.scene.get_nodes():
+            if node.name is not None and "%s-mesh" % group_name in node.name:
+                self.scene.remove_node(node)
+
+        if len(poses) < 1:
+            for mid, mesh in enumerate(meshes):
+                if isinstance(mesh, trimesh.Trimesh):
+                    mesh = pyrender.Mesh.from_trimesh(mesh)
+                self.scene.add(mesh, "%s-mesh-%2d" % (group_name, mid))
+        else:
+            for mid, iter_value in enumerate(zip(meshes, poses)):
+                mesh, pose = iter_value
+                if isinstance(mesh, trimesh.Trimesh):
+                    mesh = pyrender.Mesh.from_trimesh(mesh)
+                self.scene.add(mesh, "%s-mesh-%2d" % (group_name, mid), pose)
+
+    def set_static_meshes(self, meshes, poses=[]):
+        self.set_meshes(meshes, group_name="static", poses=poses)
+
+    def set_dynamic_meshes(self, meshes, poses=[]):
+        self.set_meshes(meshes, group_name="dynamic", poses=poses)
+
+    def _add_raymond_light(self):
+        from pyrender.light import DirectionalLight
+        from pyrender.node import Node
+
+        thetas = np.pi * np.array([1.0 / 6.0, 1.0 / 6.0, 1.0 / 6.0])
+        phis = np.pi * np.array([0.0, 2.0 / 3.0, 4.0 / 3.0])
+
+        nodes = []
+
+        for phi, theta in zip(phis, thetas):
+            xp = np.sin(theta) * np.cos(phi)
+            yp = np.sin(theta) * np.sin(phi)
+            zp = np.cos(theta)
+
+            z = np.array([xp, yp, zp])
+            z = z / np.linalg.norm(z)
+            x = np.array([-z[1], z[0], 0.0])
+            if np.linalg.norm(x) == 0:
+                x = np.array([1.0, 0.0, 0.0])
+            x = x / np.linalg.norm(x)
+            y = np.cross(z, x)
+
+            matrix = np.eye(4)
+            matrix[:3, :3] = np.c_[x, y, z]
+            nodes.append(
+                Node(
+                    light=DirectionalLight(color=np.ones(3), intensity=1.0),
+                    matrix=matrix,
+                )
+            )
+        return nodes
+
+    def use_raymond_lighting(self, intensity=1.0):
+        if not self.use_offscreen:
+            sys.stderr.write("Interactive viewer already uses raymond lighting!\n")
+            return
+        for n in self._add_raymond_light():
+            n.light.intensity = intensity / 3.0
+            if not self.scene.has_node(n):
+                self.scene.add_node(n)  # , parent_node=pc)
+
+    def render(self, render_wireframe=None, RGBA=False):
+        from pyrender.constants import RenderFlags
+
+        flags = RenderFlags.SHADOWS_DIRECTIONAL
+        if RGBA:
+            flags |= RenderFlags.RGBA
+        if render_wireframe is not None and render_wireframe == True:
+            flags |= RenderFlags.ALL_WIREFRAME
+        elif self.render_wireframe:
+            flags |= RenderFlags.ALL_WIREFRAME
+        color_img, depth_img = self.viewer.render(self.scene, flags=flags)
+
+        return color_img
+
+    def save_snapshot(self, fname):
+        if not self.use_offscreen:
+            sys.stderr.write(
+                "Currently saving snapshots only works with off-screen renderer!\n"
+            )
+            return
+        color_img = self.render()
+        cv2.imwrite(fname, color_img)
+
+
+def plot_xzPlane(minx, maxx, miny, minz, maxz):
+    verts = [
+        [minx, miny, minz],
+        [minx, miny, maxz],
+        [maxx, miny, maxz],
+        [maxx, miny, minz],
+    ]
+    xz_plane = Poly3DCollection([verts])
+    xz_plane.set_facecolor((0.5, 0.5, 0.5, 0.5))
+    return xz_plane
+
+
 def plot_3d_motion(
     save_path,
-    kinematic_tree,
     joints,
     title,
+    kinematic_tree=T2M_KINEMATIC_CHAIN,
     figsize=(3, 3),
     fps=120,
     radius=3,
     vis_mode="default",
-    pert_frames=None
+    pert_frames=None,
 ):
     # matplotlib.use("Agg")
 
@@ -177,17 +327,6 @@ def plot_3d_motion(
         # print(title)
         fig.suptitle(title, fontsize=10)
         ax.grid(b=False)
-
-    def plot_xzPlane(minx, maxx, miny, minz, maxz):
-        verts = [
-            [minx, miny, minz],
-            [minx, miny, maxz],
-            [maxx, miny, maxz],
-            [maxx, miny, minz],
-        ]
-        xz_plane = Poly3DCollection([verts])
-        xz_plane.set_facecolor((0.5, 0.5, 0.5, 0.5))
-        ax.add_collection3d(xz_plane)
 
     data = joints.copy().reshape(len(joints), -1, 3)
 
@@ -228,13 +367,14 @@ def plot_3d_motion(
         ax.view_init(elev=120, azim=-90)
         # ax.view_init(elev=-90, azim=-90)
         ax.dist = 7.5
-        plot_xzPlane(
+        xz_plane = plot_xzPlane(
             MINS[0] - trajec[index, 0],
             MAXS[0] - trajec[index, 0],
             0,
             MINS[2] - trajec[index, 1],
             MAXS[2] - trajec[index, 1],
         )
+        ax.add_collection3d(xz_plane)
 
         used_colors = colors_orange if index in pert_frames else colors_blue
         for i, (chain, color) in enumerate(zip(kinematic_tree, used_colors)):
@@ -263,7 +403,7 @@ def plot_3d_motion(
     plt.close()
 
 
-def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
+def viz_smplx(output, model, transl, plot_joints=False, plotting_module="pyrender"):
     vertices = output.vertices.detach().cpu().numpy().squeeze()
     joints = output.joints.detach().cpu().numpy().squeeze()
 
@@ -282,8 +422,20 @@ def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
         scene = pyrender.Scene()
         scene.add(mesh)
 
+        # camera_pose = np.eye(4)
+        # camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0, aspectRatio=1.0)
+
         camera_pose = np.eye(4)
-        camera = pyrender.PerspectiveCamera(yfov=np.pi / 3.0, aspectRatio=1.0)
+        transl[0] *= -1.0
+        camera_pose[:3, 3] = transl
+        camera = pyrender.IntrinsicsCamera(
+            fx=5000,
+            fy=5000,
+            cx=128,
+            cy=128,
+            zfar=1e12,
+        )
+
         scene.add(camera, pose=camera_pose)
 
         if plot_joints:
@@ -294,7 +446,9 @@ def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
             joints_pcl = pyrender.Mesh.from_trimesh(sm, poses=tfs)
             scene.add(joints_pcl)
 
-        viewer = pyrender.Viewer(scene, use_raymond_lighting=True)
+        viewer = pyrender.Viewer(
+            scene, use_raymond_lighting=True, viewport_size=(256, 256)
+        )
 
     elif plotting_module == "matplotlib":
         from matplotlib import pyplot as plt
@@ -316,7 +470,7 @@ def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
         if plot_joints:
             ax.scatter(joints[:, 0], joints[:, 1], joints[:, 2], alpha=0.1)
             for i, (xi, yi, zi) in enumerate(joints):
-                ax.text(xi, yi, zi, f'{i}', color='red')
+                ax.text(xi, yi, zi, f"{i}", color="red")
         plt.axis("off")
         plt.show()
 
@@ -324,7 +478,14 @@ def viz_smplx(output, model, plot_joints=False, plotting_module="pyrender"):
         raise ValueError("Unknown plotting_module: {}".format(plotting_module))
 
 
-def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, kinematic_tree, fps=120):
+def plot_3d_meshes(
+    save_path,
+    joints_batch,
+    vertices_batch,
+    faces,
+    kinematic_tree=T2M_KINEMATIC_CHAIN,
+    fps=120,
+):
     frame_number = joints_batch.shape[0]
 
     colors_orange = [
@@ -338,7 +499,7 @@ def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, kinematic_tre
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection="3d")
-    ax.view_init(elev=270, azim=270)
+    ax.view_init(elev=120, azim=-90)
     ax.grid(b=False)
     plt.tight_layout()
     plt.axis("off")
@@ -348,7 +509,7 @@ def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, kinematic_tre
         ax.lines = []
         vertices = vertices_batch[idx, ...]
         joints = joints_batch[idx, ...]
-        mesh = Poly3DCollection(vertices[model.faces], alpha=0.1)
+        mesh = Poly3DCollection(vertices[faces], alpha=0.1)
         face_color = (1.0, 1.0, 0.9)
         edge_color = (0, 0, 0)
         mesh.set_edgecolor(edge_color)
@@ -368,10 +529,36 @@ def plot_3d_meshes(save_path, joints_batch, vertices_batch, model, kinematic_tre
                 linewidth=linewidth,
                 color=color,
             )
-    
+
     ani = FuncAnimation(
         fig, update, frames=frame_number, interval=1000 / fps, repeat=False
     )
 
     ani.save(save_path, fps=fps)
     plt.close()
+
+
+def vis_body_pose_beta(vertices, faces):
+    mv = MeshViewer()
+    body_mesh = trimesh.Trimesh(vertices=vertices, faces=faces)
+    mv.set_static_meshes([body_mesh])
+    body_image = mv.render(render_wireframe=False)
+    show_image(body_image)
+
+
+def show_image(img_ndarray):
+    """
+    Visualize rendered body images resulted from render_smpl_params in Jupyter notebook
+    :param img_ndarray: Nxim_hxim_wx3
+    """
+    import matplotlib.pyplot as plt
+    import cv2
+
+    fig = plt.figure(figsize=(4, 4), dpi=300)
+    ax = fig.gca()
+
+    img = img_ndarray.astype(np.uint8)
+    img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    ax.imshow(img)
+    plt.axis("off")
+    plt.show()
