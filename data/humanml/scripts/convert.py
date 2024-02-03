@@ -50,9 +50,11 @@ def moyo(
     positions_list, data_list, rec_ric_data_list = [], [], []
     for pkl_path in tqdm(dataset_dir.rglob("*.pkl")):
         try:
-            with open(pkl_path, "rb") as fp: moyo_smpl = pickle.load(fp)
+            with open(pkl_path, "rb") as fp:
+                moyo_smpl = pickle.load(fp)
         except pickle.UnpicklingError:
-            print(f"Error loading {pkl_path}")
+            print(f"Error loading {pkl_path}, skipping...")
+            continue
         filename_npy = f"{pkl_path.stem}.npy"
 
         smpl_params = dict()
@@ -79,7 +81,7 @@ def moyo(
         # save joints (positions)
         if joints_dir is not None:
             joints_dir.mkdir(exist_ok=True, parents=True)
-            np.save(joints_dir / filename_npy)
+            np.save(joints_dir / filename_npy, positions)
 
         # save new_joint_vec (HumanML full rep.)
         data, _, _, _ = process_file(positions, 0.002)
@@ -104,6 +106,20 @@ def moyo(
 
 
 @app.command()
+def moyo_filenames_to_text(dataset_dir: Path, text_dir: Path):
+    text_dir.mkdir(exist_ok=True, parents=True)
+    for pkl_path in dataset_dir.rglob("*.pkl"):
+        filename = pkl_path.stem
+        action_name = filename.split("03596_")[-1].split("-")[0]
+        action_name = action_name.replace("_", " ").replace("(", "").replace(")", "")
+        text = f"A person does {action_name}"
+
+        txt_path = text_dir / f"{filename}.txt"
+        with open(txt_path, "w") as f:
+            f.write(text)
+
+
+@app.command()
 def humans4d(
     dataset_dir: Path,
     joints_dir: Optional[Path] = None,
@@ -121,7 +137,7 @@ def humans4d(
         # save joints (positions)
         if joints_dir is not None:
             joints_dir.mkdir(exist_ok=True, parents=True)
-            np.save(joints_dir / filename_npy)
+            np.save(joints_dir / filename_npy, positions)
 
         # save new_joint_vec (HumanML full rep.)
         data, _, _, _ = process_file(positions, 0.002)

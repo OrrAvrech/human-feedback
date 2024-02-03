@@ -1,8 +1,8 @@
-from pathlib import Path
-from typing import Optional
-
+import os
 import cv2
 import ffmpeg
+from pathlib import Path
+from typing import Optional
 
 
 def get_fps(vid_path: Path) -> float:
@@ -14,7 +14,7 @@ def get_fps(vid_path: Path) -> float:
             return original_fps
 
 
-def extract_frames(vid_path: Path, output_dir: Path, fps: Optional[float] = None):
+def extract_frames(vid_path: Path, output_dir: Path, fps: Optional[float] = None) -> float:
     if fps is None:
         fps = get_fps(vid_path)
     (
@@ -40,3 +40,10 @@ def frames_to_vid(frames_dir: Path, output_path: Path, fps: float, frmt: str = "
         video.write(frame)
 
     video.release()
+
+
+def save_vid_list(saved_files: list[Path], save_path: Path):
+    ffmpeg_rep_files = [f' -i {str(f)} ' for f in saved_files]
+    hstack_args = f' -filter_complex hstack=inputs={len(saved_files)}'
+    ffmpeg_rep_cmd = f'ffmpeg -y -loglevel warning ' + ''.join(ffmpeg_rep_files) + f'{hstack_args} {str(save_path)}'
+    os.system(ffmpeg_rep_cmd)
