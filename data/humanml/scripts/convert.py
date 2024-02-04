@@ -112,11 +112,19 @@ def moyo_filenames_to_text(dataset_dir: Path, text_dir: Path):
         filename = pkl_path.stem
         action_name = filename.split("03596_")[-1].split("-")[0]
         action_name = action_name.replace("_", " ").replace("(", "").replace(")", "")
-        text = f"A person does {action_name}"
+        text = f"a person does {action_name.rstrip()}."
+        action_splits = action_name.split(" or ")
+        tokens = "a/DET person/NOUN does/VERB "
+        for i, action in enumerate(action_splits):
+            if i == 0:
+                tokens += f"{action}/NOUN"
+            else:
+                tokens += f" or/CCONJ {action.rstrip()}/NOUN"
 
+        text_with_tokens = f"{text}#{tokens}#0.0#0.0"
         txt_path = text_dir / f"{filename}.txt"
         with open(txt_path, "w") as f:
-            f.write(text)
+            f.write(text_with_tokens)
 
 
 @app.command()
