@@ -12,7 +12,7 @@ from transformers import pipeline
 from dataclasses import dataclass, asdict
 from moviepy.video.io.VideoFileClip import VideoFileClip
 
-from utils import read_text
+from utils.io import read_text
 from data.data_config import DataConfig, ScraperConfig
 import jinja2 as j2
 

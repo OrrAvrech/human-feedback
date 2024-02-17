@@ -58,6 +58,7 @@ def save_random_perturbations(
 
 def main(
     dataset_dir: Path,
+    split: Optional[str] = "train",
     smpl_dir: Optional[Path] = None,
     max_frames: Optional[int] = None,
     pert_perc: Optional[float] = 0.03,
@@ -71,7 +72,7 @@ def main(
     ds = BaseMotionSplit(
         dataset_dir=dataset_dir,
         motion_dir="new_joint_vecs",
-        split="train",
+        split=split,
         max_frames=max_frames,
     )
     motion_file_list = ds.motion_file_list

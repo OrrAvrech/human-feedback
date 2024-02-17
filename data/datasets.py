@@ -13,21 +13,26 @@ class BaseMotion(data.Dataset):
 
     def __getitem__(self, idx) -> np.array:
         filepath = self.motion_file_list[idx]
-        motion = torch.Tensor(np.load(filepath))[:self.max_frames, ...]
+        motion = torch.Tensor(np.load(filepath))[: self.max_frames, ...]
         return motion
 
     def __len__(self):
         return len(self.motion_file_list)
-    
+
 
 class BaseMotionSplit(BaseMotion):
-    def __init__(self, dataset_dir: Path, motion_dir: str, split: str, max_frames: Optional[int] = None):
+    def __init__(
+        self,
+        dataset_dir: Path,
+        motion_dir: str,
+        split: str,
+        max_frames: Optional[int] = None,
+    ):
         self.motion_dir = dataset_dir / motion_dir
         super().__init__(self.motion_dir, max_frames)
         self.split_file = dataset_dir / f"{split}.txt"
         id_list = []
-        with open(self.split_file, 'r') as f:
+        with open(self.split_file, "r") as f:
             for line in f.readlines():
                 id_list.append(line.strip())
         self.motion_file_list = [p for p in self.motion_file_list if p.stem in id_list]
-    
